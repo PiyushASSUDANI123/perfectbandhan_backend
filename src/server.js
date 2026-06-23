@@ -9,10 +9,10 @@ const PORT = process.env.PORT || 3000;
 dbService.connect();
 whatsappService.initialize();
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('==================================================');
   console.log(`  SINDHI SHADI BACKEND RUNNING ON PORT: ${PORT}`);
   console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`  Local URL: http://localhost:${PORT}`);
+  console.log(`  Host Bind: http://0.0.0.0:${PORT}`);
   console.log('==================================================');
 });
