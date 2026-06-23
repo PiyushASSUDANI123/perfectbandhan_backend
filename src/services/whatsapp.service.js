@@ -49,7 +49,11 @@ class WhatsAppService {
   }
 
   async sendOtp(phone, otp) {
-    const formattedPhone = `${phone.trim()}@c.us`;
+    let targetPhone = phone.trim();
+    if (targetPhone.length === 10) {
+      targetPhone = `91${targetPhone}`;
+    }
+    const formattedPhone = `${targetPhone}@c.us`;
     const message = `Jai Jhulelal! Your verification OTP code for Sindhi Shadi is: ${otp}. Valid for 5 minutes.`;
 
     if (this.client && this.isReady) {
