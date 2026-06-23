@@ -1,0 +1,31 @@
+# Dependency directories
+node_modules/
+
+# Local env files containing credentials
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# WhatsApp Web Session storage
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+backend.log
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
