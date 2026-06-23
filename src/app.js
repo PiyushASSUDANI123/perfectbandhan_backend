@@ -14,7 +14,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.get('/', (req, res) => {
   res.status(200).json({
     status: 'success',
-    message: 'Sindhi Shadi Premium API Server is fully operational.'
+    message: 'Humsafar Premium API Server is fully operational.'
   });
 });
 
