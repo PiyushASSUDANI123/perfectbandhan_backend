@@ -22,4 +22,13 @@ router.post('/block', auth, userController.blockUser);
 // Password Management
 router.post('/password', auth, userController.changePassword);
 
+// In-App Chat Routes
+router.get('/chat/:targetUserId', auth, userController.getChatMessages);
+router.post('/chat/send', auth, userController.sendChatMessage);
+
+// Admin Control Panel Routes
+router.post('/admin/push', auth, userController.adminBroadcastPush);
+router.put('/admin/user/:userId', auth, userController.adminEditUser);
+router.put('/admin/change-password', auth, userController.adminChangePassword);
+
 module.exports = router;

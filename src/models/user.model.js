@@ -185,6 +185,18 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  whatsappNumber: {
+    type: String,
+    default: ''
+  },
+  chatConnections: {
+    type: [String],
+    default: []
+  },
+  lastResetMonth: {
+    type: Number,
+    default: new Date().getMonth()
+  },
   // --- Profile Settings & Privacy ---
   familyType: {
     type: String,

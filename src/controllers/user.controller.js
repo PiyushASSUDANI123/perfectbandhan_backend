@@ -83,6 +83,7 @@ exports.getMyProfile = async (req, res) => {
         siblingsCount: user.siblingsCount || '0',
         siblingsDetails: user.siblingsDetails || '',
         sindhiType: user.sindhiType || 'Sindhi Hindu',
+        whatsappNumber: user.whatsappNumber || '',
         partnerPreferences: user.partnerPreferences || {}
       }
     });
@@ -127,7 +128,7 @@ exports.createProfile = async (req, res) => {
       'education', 'profession', 'incomeBracket', 'nukh', 'bio', 'uploadedPhotos',
       'surname', 'monthlyIncome', 'yearlyIncome', 'district', 'properAddress',
       'ownHouse', 'complexion', 'weight', 'fatherStatus', 'motherStatus', 'siblingsCount',
-      'sindhiType'
+      'sindhiType', 'whatsappNumber'
     ];
 
     // Conditional requirements: Job Title & Company Name required if working
@@ -438,7 +439,8 @@ exports.getProfiles = async (req, res) => {
         professionSector: p.professionSector,
         gradientColors: p.gradientColors,
         photos: p.uploadedPhotos,
-        phone: isConnected ? profilePhone : 'LOCKED',
+        phone: profilePhone,
+        whatsappNumber: p.whatsappNumber || '',
         interestStatus: interestStatus,
         monthlyIncome: p.incomeHidden ? 'Private' : (p.monthlyIncome || ''),
         yearlyIncome: p.incomeHidden ? 'Private' : (p.yearlyIncome || ''),
@@ -790,5 +792,225 @@ exports.changePassword = async (req, res) => {
   } catch (error) {
     console.error('[User Controller changePassword Error]', error);
     return res.status(500).json({ status: 'error', message: 'Server failed to change password.' });
+  }
+};
+
+// GET /api/v1/user/chat/:targetUserId
+exports.getChatMessages = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const { targetUserId } = req.params;
+
+    const caller = await User.findOne({ phone: callerPhone });
+    if (!caller) {
+      return res.status(404).json({ status: 'error', message: 'User not found.' });
+    }
+
+    const Message = require('../models/message.model');
+    const messages = await Message.find({
+      $or: [
+        { sender: caller._id, receiver: targetUserId },
+        { sender: targetUserId, receiver: caller._id }
+      ]
+    }).sort({ createdAt: 1 });
+
+    return res.status(200).json({
+      status: 'success',
+      data: messages.map(m => ({
+        id: m._id.toString(),
+        sender: m.sender.toString(),
+        receiver: m.receiver.toString(),
+        text: m.text,
+        createdAt: m.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('[User Controller getChatMessages Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to retrieve chat history.' });
+  }
+};
+
+// POST /api/v1/user/chat/send
+exports.sendChatMessage = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const { targetUserId, text } = req.body;
+
+    if (!targetUserId || !text) {
+      return res.status(400).json({ status: 'error', message: 'targetUserId and text are required.' });
+    }
+
+    const caller = await User.findOne({ phone: callerPhone });
+    if (!caller) {
+      return res.status(404).json({ status: 'error', message: 'User not found.' });
+    }
+
+    // Check monthly reset
+    const currentMonth = new Date().getMonth();
+    if (caller.lastResetMonth !== currentMonth) {
+      caller.chatConnections = [];
+      caller.lastResetMonth = currentMonth;
+      await caller.save();
+    }
+
+    // Check if targetUserId is already in chatConnections
+    const isAlreadyConnected = caller.chatConnections.includes(targetUserId);
+
+    if (!isAlreadyConnected) {
+      // Check if limit of 3 exceeded
+      if (caller.chatConnections.length >= 3) {
+        return res.status(403).json({
+          status: 'limit_reached',
+          message: 'Monthly chat connection limit reached (Max 3 active chats per month).'
+        });
+      }
+      caller.chatConnections.push(targetUserId);
+      await caller.save();
+    }
+
+    const Message = require('../models/message.model');
+    const message = new Message({
+      sender: caller._id,
+      receiver: targetUserId,
+      text: text
+    });
+    await message.save();
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        id: message._id.toString(),
+        sender: message.sender.toString(),
+        receiver: message.receiver.toString(),
+        text: message.text,
+        createdAt: message.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('[User Controller sendChatMessage Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to send message.' });
+  }
+};
+
+// POST /api/v1/user/admin/push
+exports.adminBroadcastPush = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const adminPhone = process.env.ADMIN_PHONE || '9413879444';
+
+    if (callerPhone !== adminPhone && !req.user.isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Access denied. Admins only.' });
+    }
+
+    const { message } = req.body;
+    if (!message) {
+      return res.status(400).json({ status: 'error', message: 'Message is required.' });
+    }
+
+    console.log(`[Admin Push Broadcast] Message: "${message}"`);
+    try {
+      const users = await User.find({ phone: { $ne: adminPhone } });
+      for (const u of users) {
+        console.log(`[FCM Mock Broadcast] Dispatched notification to +91 ${u.phone}: "${message}"`);
+      }
+    } catch (_) {}
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Broadcasting push notification to all active devices successfully.'
+    });
+  } catch (error) {
+    console.error('[User Controller adminBroadcastPush Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to broadcast notification.' });
+  }
+};
+
+// PUT /api/v1/user/admin/user/:userId
+exports.adminEditUser = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const adminPhone = process.env.ADMIN_PHONE || '9413879444';
+
+    if (callerPhone !== adminPhone && !req.user.isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Access denied. Admins only.' });
+    }
+
+    const { userId } = req.params;
+    const updateData = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ status: 'error', message: 'User not found.' });
+    }
+
+    // Apply updates
+    Object.assign(user, updateData);
+    await user.save();
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'User profile updated successfully by Admin.'
+    });
+  } catch (error) {
+    console.error('[User Controller adminEditUser Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to update user profile.' });
+  }
+};
+
+// PUT /api/v1/user/admin/change-password
+exports.adminChangePassword = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const adminPhone = process.env.ADMIN_PHONE || '9413879444';
+
+    if (callerPhone !== adminPhone && !req.user.isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Access denied. Admins only.' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ status: 'error', message: 'Current password and new password are required.' });
+    }
+
+    const adminPasswordEnv = process.env.ADMIN_PASSWORD || 'piyushassudani@96';
+    let adminRecord = await User.findOne({ phone: adminPhone });
+    if (!adminRecord) {
+      adminRecord = new User({
+        phone: adminPhone,
+        profileFor: 'Self',
+        gender: 'Male',
+        firstName: 'Admin',
+        lastName: 'Account',
+        email: 'admin@humsafar.com',
+        dob: new Date(),
+        height: "5'10\"",
+        city: 'Delhi',
+        state: 'Delhi',
+        location: 'Delhi, Delhi',
+        maritalStatus: 'Unmarried',
+        education: 'Graduate',
+        profession: 'Admin',
+        incomeBracket: 'Private',
+        password: adminPasswordEnv
+      });
+      await adminRecord.save();
+    }
+
+    const dbPassword = adminRecord.password || '';
+    const isValid = currentPassword === adminPasswordEnv || currentPassword === dbPassword;
+    if (!isValid) {
+      return res.status(400).json({ status: 'error', message: 'Incorrect current admin password.' });
+    }
+
+    adminRecord.password = newPassword;
+    await adminRecord.save();
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Admin password updated successfully.'
+    });
+  } catch (error) {
+    console.error('[User Controller adminChangePassword Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to update admin password.' });
   }
 };
