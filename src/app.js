@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 
@@ -16,6 +17,11 @@ app.get('/', (req, res) => {
     status: 'success',
     message: 'Humsafar Premium API Server is fully operational.'
   });
+});
+
+// Privacy Policy page
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/privacy.html'));
 });
 
 // Endpoint prefixes mapping
