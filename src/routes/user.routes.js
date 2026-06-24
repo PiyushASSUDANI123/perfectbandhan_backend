@@ -22,7 +22,11 @@ router.post('/block', auth, userController.blockUser);
 // Password Management
 router.post('/password', auth, userController.changePassword);
 
+// FCM Token Management
+router.post('/fcm-token', auth, userController.updateFcmToken);
+
 // In-App Chat Routes
+router.get('/chats', auth, userController.getConversations);
 router.get('/chat/:targetUserId', auth, userController.getChatMessages);
 router.post('/chat/send', auth, userController.sendChatMessage);
 
@@ -30,5 +34,9 @@ router.post('/chat/send', auth, userController.sendChatMessage);
 router.post('/admin/push', auth, userController.adminBroadcastPush);
 router.put('/admin/user/:userId', auth, userController.adminEditUser);
 router.put('/admin/change-password', auth, userController.adminChangePassword);
+
+// App Version & Update Management
+router.get('/app-config', userController.getAppConfig);              // Public: client checks for updates
+router.put('/admin/app-config', auth, userController.updateAppConfig); // Admin: set version rules
 
 module.exports = router;

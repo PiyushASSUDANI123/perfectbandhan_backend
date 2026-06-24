@@ -363,7 +363,7 @@ exports.getProfiles = async (req, res) => {
     }
 
     // Sorting recommendations by compatibility score
-    let mongooseQuery = User.find(query);
+    let mongooseQuery = User.find(query).select('-password');
     if (recommendations === 'true') {
       mongooseQuery = mongooseQuery.sort({ compatibilityScore: -1 });
     }
@@ -516,8 +516,12 @@ exports.sendInterest = async (req, res) => {
         { upsert: true, new: true }
       );
 
+      // Fetch target user's FCM token
+      const targetUser = await User.findOne({ phone: toPhone });
+      const fcmToken = targetUser && targetUser.fcmToken ? targetUser.fcmToken : null;
+
       await fcmService.sendPushNotification(
-        null,
+        fcmToken,
         "Mutual Connection Established!",
         "Jai Jhulelal! You and the other user accepted each other's connection requests. WhatsApp contact details are unlocked!",
         { fromPhone: callerPhone, toPhone: toPhone, status: 'accepted' }
@@ -542,8 +546,11 @@ exports.sendInterest = async (req, res) => {
       });
       await newInterest.save();
       
+      const targetUserForNewReq = await User.findOne({ phone: toPhone });
+      const fcmTokenNew = targetUserForNewReq && targetUserForNewReq.fcmToken ? targetUserForNewReq.fcmToken : null;
+
       await fcmService.sendPushNotification(
-        null,
+        fcmTokenNew,
         "New Connection Request Received",
         "An elite matrimony candidate has shown interest in your profile! Check them out.",
         { fromPhone: callerPhone, status: 'pending' }
@@ -585,25 +592,27 @@ exports.getInterests = async (req, res) => {
         age--;
       }
 
-      return {
+        return {
         id: p._id.toString(),
         name: `${p.firstName} ${p.lastName}`,
         age: age,
-        height: p.height,
-        caste: p.caste,
-        profession: p.profession,
-        company: p.company,
-        location: p.location,
-        education: p.education,
-        bio: p.bio,
-        compatibilityScore: p.compatibilityScore,
-        initials: p.initials,
-        fathersOccupation: p.fathersOccupation,
-        incomeBracket: p.incomeBracket,
-        professionSector: p.professionSector,
-        gradientColors: p.gradientColors,
-        photos: p.uploadedPhotos,
-        phone: p.phone,
+        height: p.height || '',
+        caste: p.caste || '',
+        profession: p.profession || '',
+        company: p.company || 'Self',
+        location: p.location || '',
+        education: p.education || '',
+        bio: p.bio || '',
+        compatibilityScore: p.compatibilityScore || 80,
+        initials: p.initials || '',
+        fathersOccupation: p.fathersOccupation || '',
+        incomeBracket: p.incomeBracket || '',
+        professionSector: p.professionSector || '',
+        gradientColors: p.gradientColors || ['#C5A059', '#DFBA73'],
+        photos: p.uploadedPhotos || [],
+        phone: p.phone || '',
+        whatsappNumber: p.whatsappNumber || '',
+        sindhiType: p.sindhiType || 'Sindhi Hindu',
         interestStatus: 'incoming',
         monthlyIncome: p.monthlyIncome || '',
         yearlyIncome: p.yearlyIncome || '',
@@ -663,8 +672,11 @@ exports.acceptInterest = async (req, res) => {
         { upsert: true, new: true }
       );
 
+      const targetUserForAccept = await User.findOne({ phone: fromPhone });
+      const fcmTokenAccept = targetUserForAccept && targetUserForAccept.fcmToken ? targetUserForAccept.fcmToken : null;
+
       await fcmService.sendPushNotification(
-        null,
+        fcmTokenAccept,
         "Connection Request Approved!",
         "Jai Jhulelal! Your connection request has been accepted. WhatsApp contact details are unlocked!",
         { fromPhone: callerPhone, toPhone: fromPhone, status: 'accepted' }
@@ -981,7 +993,7 @@ exports.adminChangePassword = async (req, res) => {
         gender: 'Male',
         firstName: 'Admin',
         lastName: 'Account',
-        email: 'admin@humsafar.com',
+        email: 'admin@perfectbandhan.com',
         dob: new Date(),
         height: "5'10\"",
         city: 'Delhi',
@@ -1012,5 +1024,206 @@ exports.adminChangePassword = async (req, res) => {
   } catch (error) {
     console.error('[User Controller adminChangePassword Error]', error);
     return res.status(500).json({ status: 'error', message: 'Server failed to update admin password.' });
+  }
+};
+
+exports.getConversations = async (req, res) => {
+  try {
+    if (!req.user || !req.user.phone) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized.' });
+    }
+    const callerPhone = req.user.phone;
+    const caller = await User.findOne({ phone: callerPhone });
+    if (!caller) {
+      return res.status(404).json({ status: 'error', message: 'User not found.' });
+    }
+
+    const Message = require('../models/message.model');
+    const messages = await Message.find({
+      $or: [
+        { sender: caller._id },
+        { receiver: caller._id }
+      ]
+    });
+
+    const userIds = new Set();
+    messages.forEach(m => {
+      if (m.sender.toString() !== caller._id.toString()) {
+        userIds.add(m.sender.toString());
+      }
+      if (m.receiver.toString() !== caller._id.toString()) {
+        userIds.add(m.receiver.toString());
+      }
+    });
+
+    const interests = await Interest.find({
+      status: 'accepted',
+      $or: [
+        { from_phone: callerPhone },
+        { to_phone: callerPhone }
+      ]
+    });
+
+    for (const interest of interests) {
+      const otherPhone = interest.from_phone === callerPhone ? interest.to_phone : interest.from_phone;
+      const otherUser = await User.findOne({ phone: otherPhone });
+      if (otherUser) {
+        userIds.add(otherUser._id.toString());
+      }
+    }
+
+    const users = await User.find({ _id: { $in: Array.from(userIds) } });
+
+    const conversations = users.map(p => {
+      const today = new Date();
+      let age = today.getFullYear() - p.dob.getFullYear();
+      const monthDiff = today.getMonth() - p.dob.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < p.dob.getDate())) {
+        age--;
+      }
+
+      return {
+        id: p._id.toString(),
+        name: `${p.firstName} ${p.lastName}`,
+        age: age,
+        height: p.height,
+        caste: p.caste,
+        profession: p.profession,
+        company: p.company,
+        location: p.location,
+        education: p.education,
+        bio: p.bio,
+        compatibilityScore: p.compatibilityScore,
+        initials: p.initials,
+        fathersOccupation: p.fathersOccupation,
+        incomeBracket: p.incomeBracket,
+        professionSector: p.professionSector,
+        gradientColors: p.gradientColors,
+        photos: p.uploadedPhotos,
+        phone: p.phone,
+        whatsappNumber: p.whatsappNumber || '',
+        interestStatus: 'accepted',
+        monthlyIncome: p.monthlyIncome || '',
+        yearlyIncome: p.yearlyIncome || '',
+        district: p.district || '',
+        properAddress: p.properAddress || '',
+        jobPost: p.jobPost || '',
+        ownHouse: p.ownHouse || '',
+        housePhoto: p.housePhoto || '',
+        surname: p.surname || '',
+        nukh: p.nukh || '',
+        requirements: p.requirements || '',
+        whatWeProvide: p.whatWeProvide || '',
+        physicalDisability: p.physicalDisability || '',
+        complexion: p.complexion || '',
+        weight: p.weight || '',
+        fatherStatus: p.fatherStatus || 'Alive',
+        motherStatus: p.motherStatus || 'Alive',
+        mothersOccupation: p.mothersOccupation || '',
+        siblingsCount: p.siblingsCount || '0',
+        siblingsDetails: p.siblingsDetails || '',
+        sindhiType: p.sindhiType || 'Sindhi Hindu',
+      };
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      data: conversations
+    });
+  } catch (error) {
+    console.error('[User Controller getConversations Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to retrieve chat list.' });
+  }
+};
+
+// ─── App Version & Update Management ─────────────────────────────────────────
+
+const AppConfig = require('../models/config.model');
+
+// GET /api/v1/user/app-config  (Public - client checks this on startup)
+exports.getAppConfig = async (req, res) => {
+  try {
+    // Get the first (and only) config document, or return defaults
+    let config = await AppConfig.findOne({});
+    if (!config) {
+      config = await AppConfig.create({});
+    }
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        latestVersion: config.latestVersion,
+        minVersion: config.minVersion,
+        forceUpdate: config.forceUpdate,
+        updateMessage: config.updateMessage,
+        downloadUrl: config.downloadUrl,
+      }
+    });
+  } catch (error) {
+    console.error('[User Controller getAppConfig Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to retrieve app config.' });
+  }
+};
+
+// PUT /api/v1/user/admin/app-config  (Admin only)
+exports.updateAppConfig = async (req, res) => {
+  try {
+    const adminPhone = process.env.ADMIN_PHONE || '9999999999';
+    if (!req.user || req.user.phone !== adminPhone) {
+      return res.status(403).json({ status: 'error', message: 'Forbidden. Access restricted to admin only.' });
+    }
+
+    const { latestVersion, minVersion, forceUpdate, updateMessage, downloadUrl } = req.body;
+
+    const updateFields = {};
+    if (latestVersion !== undefined) updateFields.latestVersion = latestVersion;
+    if (minVersion !== undefined) updateFields.minVersion = minVersion;
+    if (forceUpdate !== undefined) updateFields.forceUpdate = Boolean(forceUpdate);
+    if (updateMessage !== undefined) updateFields.updateMessage = updateMessage;
+    if (downloadUrl !== undefined) updateFields.downloadUrl = downloadUrl;
+
+    // Upsert: create if not exists, update if exists
+    const config = await AppConfig.findOneAndUpdate(
+      {},
+      { $set: updateFields },
+      { upsert: true, new: true }
+    );
+
+    console.log(`[Admin] App config updated:`, updateFields);
+    return res.status(200).json({
+      status: 'success',
+      message: 'App version config updated successfully.',
+      data: config
+    });
+  } catch (error) {
+    console.error('[User Controller updateAppConfig Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to update app config.' });
+  }
+};
+
+// POST /api/v1/user/fcm-token
+exports.updateFcmToken = async (req, res) => {
+  try {
+    if (!req.user || !req.user.phone) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized.' });
+    }
+
+    const { fcmToken } = req.body;
+    if (!fcmToken) {
+      return res.status(400).json({ status: 'error', message: 'FCM token is required.' });
+    }
+
+    await User.findOneAndUpdate(
+      { phone: req.user.phone },
+      { $set: { fcmToken } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'FCM token updated successfully.'
+    });
+  } catch (error) {
+    console.error('[User Controller updateFcmToken Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to update FCM token.' });
   }
 };

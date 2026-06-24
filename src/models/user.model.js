@@ -245,9 +245,18 @@ const UserSchema = new mongoose.Schema({
   blockedBy: {
     type: [String],
     default: []
+  },
+  fcmToken: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true
 });
+
+// Compound indexes for optimal matrimony search query execution
+UserSchema.index({ gender: 1, profileHidden: 1, maritalStatus: 1 });
+UserSchema.index({ gender: 1, city: 1, dob: 1 });
+UserSchema.index({ gender: 1, professionSector: 1, incomeBracket: 1 });
 
 module.exports = mongoose.model('User', UserSchema);

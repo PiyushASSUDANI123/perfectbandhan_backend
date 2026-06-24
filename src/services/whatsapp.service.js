@@ -58,7 +58,7 @@ class WhatsAppService {
       targetPhone = `91${targetPhone}`;
     }
     const formattedPhone = `${targetPhone}@c.us`;
-    const message = `Jai Jhulelal! Your verification OTP code for Humsafar is: ${otp}. Valid for 5 minutes.`;
+    const message = `Jai Jhulelal! Your verification OTP code for Perfect Bandhan is: ${otp}. Valid for 5 minutes.`;
 
     if (this.client && this.isReady) {
       try {

@@ -1,13 +1,46 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const compression = require('compression');
+const { rateLimit } = require('express-rate-limit');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 
 const app = express();
 
+// ─── Global 10-Second Request Timeout Middleware ──────────────────────────────
+// If any route takes more than 10s, send 504 to prevent resource exhaustion
+app.use((req, res, next) => {
+  const timeout = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(504).json({
+        status: 'error',
+        message: 'Gateway Timeout: Request took longer than 10 seconds.'
+      });
+    }
+  }, 10000);
+  // Clear the timer when response finishes
+  res.on('finish', () => clearTimeout(timeout));
+  res.on('close', () => clearTimeout(timeout));
+  next();
+});
+
+// ─── OTP Rate Limiter: Anti-Spam Shield ───────────────────────────────────────
+// Strictly limits OTP send requests to 5 per IP per minute
+const otpRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,              // max 5 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: 'Too many OTP requests from this IP. Please wait 1 minute before trying again.'
+  }
+});
+
 // Standard Apple-minimal server middleware
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -15,7 +48,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.get('/', (req, res) => {
   res.status(200).json({
     status: 'success',
-    message: 'Humsafar Premium API Server is fully operational.'
+    message: 'Perfect Bandhan Premium API Server is fully operational.'
   });
 });
 
