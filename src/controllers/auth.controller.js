@@ -25,7 +25,8 @@ exports.sendOtp = async (req, res) => {
 
     console.log(`[Auth] Received request to send OTP to +91 ${phone}`);
 
-    // If profile exists and is NOT 9413879444, block OTP login and direct to password login (unless they are resetting)
+    // If profile exists, block OTP login and direct to password login (unless they are resetting)
+    // EXCEPTION: 9413879444 can always login via OTP (direct entry)
     const isProfileComplete = await userController.profileExists(phone);
     if (isProfileComplete && phone !== '9413879444' && !req.body.reset) {
       return res.status(403).json({
@@ -98,7 +99,10 @@ exports.verifyOtp = async (req, res) => {
     if (phone === '9413879444' && otp === '123456') {
       cacheService.delete(phone); // invalidate
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
-      const isProfileComplete = await userController.profileExists(phone);
+      
+      // Always treat developer profile as complete to bypass onboarding
+      const isProfileComplete = true; 
+
       return res.status(200).json({
         status: 'success',
         message: 'OTP verified successfully',
