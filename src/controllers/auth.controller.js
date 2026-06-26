@@ -2,6 +2,7 @@ const cacheService = require('../services/cache.service');
 const jwt = require('jsonwebtoken');
 const userController = require('./user.controller');
 const whatsappService = require('../services/whatsapp.service');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -250,6 +251,37 @@ exports.generateBio = async (req, res) => {
   try {
     const data = req.body;
     
+    // Check if API key exists, otherwise fallback to templates
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = `Write a short, engaging, and professional matrimonial bio for a Sindhi matchmaking profile. 
+        Name: ${data.firstName || 'Not specified'}
+        Gender: ${data.gender || 'Not specified'}
+        City: ${data.city || 'Not specified'}
+        Education: ${data.education || 'Not specified'}
+        Profession: ${data.profession !== 'Not Working' ? (data.jobPost || data.profession) : 'Not specified'}
+        About Family: ${data.aboutFamily || 'Traditional Sindhi family'}
+        
+        The tone should be polite, respectful, and slightly modern while valuing Sindhi traditions. Do NOT use emojis. Keep it under 60 words. Speak in first-person (e.g. "I am...").`;
+
+        const result = await model.generateContent(prompt);
+        let bioText = result.response.text().trim();
+        // Remove markdown formatting if any
+        bioText = bioText.replace(/\*/g, '');
+
+        return res.status(200).json({
+          status: 'success',
+          bio: bioText
+        });
+      } catch (aiError) {
+        console.error('[Gemini AI Error] Falling back to templates:', aiError.message);
+      }
+    }
+
+    // Fallback logic
     const name = data.firstName || 'I';
     const city = data.city || 'a nice city';
     const profession = data.profession !== 'Not Working' ? (data.jobPost || data.profession) : 'a professional';
@@ -259,19 +291,13 @@ exports.generateBio = async (req, res) => {
 
     const templates = [
       `Jai Jhulelal! I am ${name}, currently working as ${profession} in ${city}. Having completed my education (${education}), I am looking for a partner who values our Sindhi traditions while balancing modern life.${familyText}`,
-      
       `Hello! I'm ${name}, residing in ${city}. Professionally, I am ${profession} and have always valued hard work and family. My educational background is ${education}. I'm searching for a compassionate, understanding ${isFemale ? 'groom' : 'bride'} who shares similar family-oriented Sindhi values.${familyText}`,
-      
       `Jai Jhulelal. Belonging to a decent Sindhi family in ${city}, I am ${name}. I am ${education} qualified and currently occupied as ${profession}. Family is my top priority, and I am looking for someone who will be a great addition to ours.${familyText}`,
-      
       `Hi, I am ${name} from ${city}. I hold a degree in ${education} and am established as ${profession}. I believe in keeping our beautiful Sindhi heritage alive and am seeking a partner who is respectful, well-cultured, and family-oriented.${familyText}`,
-      
       `Warm greetings! I am ${name}, working as ${profession} in ${city}. My academic background is ${education}. I am looking forward to starting a beautiful new chapter of life with an understanding and loving partner who respects our rich Sindhi culture.${familyText}`,
-      
       `Jai Jhulelal! My name is ${name}. Raised with good Sindhi values, I am currently living in ${city} and working as ${profession}. After finishing my ${education}, my goal is to find a compatible companion who believes in mutual respect and strong family bonds.${familyText}`
     ];
 
-    // Pick a random template
     const randomIndex = Math.floor(Math.random() * templates.length);
     const bioText = templates[randomIndex];
 

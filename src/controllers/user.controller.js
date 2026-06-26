@@ -1,5 +1,6 @@
 const User = require('../models/user.model');
 const Interest = require('../models/interest.model');
+const Message = require('../models/message.model');
 const fcmService = require('../services/fcm.service');
 const cloudinaryService = require('../services/cloudinary.service');
 
@@ -1264,6 +1265,10 @@ exports.deleteAccount = async (req, res) => {
     if (!deletedUser) {
       return res.status(404).json({ status: 'error', message: 'User not found' });
     }
+    
+    // Delete associated interests and messages
+    await Interest.deleteMany({ $or: [{ from_phone: userPhone }, { to_phone: userPhone }] });
+    await Message.deleteMany({ $or: [{ sender: deletedUser._id }, { receiver: deletedUser._id }] });
     
     console.log(`[User Controller] Account deleted for user: ${userPhone}`);
     return res.status(200).json({ status: 'success', message: 'Account permanently deleted.' });
