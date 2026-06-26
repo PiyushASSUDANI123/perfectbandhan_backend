@@ -127,8 +127,8 @@ exports.loginWithPassword = async (req, res) => {
 
     console.log(`[Auth] Validating password credentials for +91 ${phone}`);
 
-    const adminPhone = process.env.ADMIN_PHONE || '9999999999';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'adminpassword';
+    const adminPhone = process.env.ADMIN_PHONE || '1234567890';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'piyushassudani@96';
 
     if (phone === adminPhone && password === adminPassword) {
       console.log(`[Auth] Admin login successful for +91 ${phone}`);
@@ -144,12 +144,12 @@ exports.loginWithPassword = async (req, res) => {
 
     if (phone === '9413879444' && password === '123456') {
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
-      const isProfileComplete = await userController.profileExists(phone);
+      // Hardcode isProfileComplete to false so it always goes directly to the form
       return res.status(200).json({
         status: 'success',
         message: 'Login successful',
         token,
-        isProfileComplete
+        isProfileComplete: false
       });
     }
 
