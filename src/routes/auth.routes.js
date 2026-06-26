@@ -20,5 +20,6 @@ router.post('/verify-otp', authController.verifyOtp);
 router.post('/login-pass', authController.loginWithPassword);
 router.post('/set-password', authController.setPassword);
 router.get('/firebase-config', authController.getFirebaseConfig);
+router.post('/generate-bio', authController.generateBio);
 
 module.exports = router;

@@ -120,6 +120,34 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  manglikStatus: {
+    type: String,
+    default: 'Not Manglik'
+  },
+  otherGrah: {
+    type: String,
+    default: ''
+  },
+  medicalFit: {
+    type: String,
+    default: 'Yes'
+  },
+  medicalIssue: {
+    type: String,
+    default: ''
+  },
+  liveWithFamily: {
+    type: String,
+    default: 'Yes'
+  },
+  liveWithWhom: {
+    type: String,
+    default: ''
+  },
+  aboutFamily: {
+    type: String,
+    default: ''
+  },
   incomeBracket: {
     type: String,
     required: true
@@ -229,14 +257,25 @@ const UserSchema = new mongoose.Schema({
   },
   // --- Partner Preferences ---
   partnerPreferences: {
-    minAge: { type: Number, default: 18 },
-    maxAge: { type: Number, default: 50 },
-    minHeight: { type: String, default: "4'0\"" },
-    maxHeight: { type: String, default: "7'0\"" },
-    maritalStatus: { type: String, default: 'Any' },
-    education: { type: String, default: 'Any' },
-    professionSector: { type: String, default: 'Any' },
-    city: { type: String, default: 'Any' }
+    minAge: { type: Number, default: 22 },
+    maxAge: { type: Number, default: 26 },
+    minHeight: { type: String, default: "5'0\"" },
+    maxHeight: { type: String, default: "5'10\"" },
+    country: { type: String, default: 'India' },
+    state: { type: String, default: 'Not set' },
+    city: { type: String, default: 'Not set' },
+    religion: { type: [String], default: ['Hindu'] },
+    caste: { type: [String], default: [] },
+    motherTongue: { type: [String], default: [] },
+    manglikStatus: { type: [String], default: ['Non Manglik'] },
+    education: { type: [String], default: [] },
+    professionSector: { type: [String], default: [] },
+    incomeRupees: { type: String, default: '0 and above' },
+    incomeDollars: { type: String, default: '0 and above' }
+  },
+  hobbies: {
+    type: [String],
+    default: []
   },
   reportedBy: {
     type: [String],

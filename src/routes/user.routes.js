@@ -25,6 +25,13 @@ router.post('/password', auth, userController.changePassword);
 // FCM Token Management
 router.post('/fcm-token', auth, userController.updateFcmToken);
 
+// Account Deletion
+router.delete('/account', auth, userController.deleteAccount);
+
+// Preferences & Hobbies
+router.put('/partner-preferences', auth, userController.updatePartnerPreferences);
+router.put('/hobbies', auth, userController.updateHobbies);
+
 // In-App Chat Routes
 router.get('/chats', auth, userController.getConversations);
 router.get('/chat/:targetUserId', auth, userController.getChatMessages);

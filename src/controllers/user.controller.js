@@ -241,6 +241,14 @@ exports.createProfile = async (req, res) => {
 
     console.log(`[MongoDB Write] Successfully stored/updated user profile for +91 ${profileData.phone} in MongoDB Atlas.`);
 
+    if (user.fcmToken) {
+      await fcmService.sendPushNotification(
+        user.fcmToken,
+        'Profile Completed! 🎉',
+        `Welcome ${profileData.firstName}, your premium profile is now live. Let's find your Perfect Bandhan!`
+      );
+    }
+
     return res.status(200).json({
       status: 'success',
       message: 'Profile completed successfully and saved to database.',
@@ -1212,11 +1220,28 @@ exports.updateFcmToken = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'FCM token is required.' });
     }
 
-    await User.findOneAndUpdate(
+    const user = await User.findOneAndUpdate(
       { phone: req.user.phone },
       { $set: { fcmToken } },
       { new: true }
     );
+
+    if (user) {
+      const isComplete = !!user.firstName;
+      if (!isComplete) {
+        await fcmService.sendPushNotification(
+          fcmToken,
+          'Welcome to Sindhi Shadi! 💖',
+          'Please complete your profile to find your perfect partner.'
+        );
+      } else {
+        await fcmService.sendPushNotification(
+          fcmToken,
+          'Welcome Back! 💖',
+          `Happy searching, ${user.firstName}!`
+        );
+      }
+    }
 
     return res.status(200).json({
       status: 'success',
@@ -1225,5 +1250,63 @@ exports.updateFcmToken = async (req, res) => {
   } catch (error) {
     console.error('[User Controller updateFcmToken Error]', error);
     return res.status(500).json({ status: 'error', message: 'Failed to update FCM token.' });
+  }
+};
+
+exports.deleteAccount = async (req, res) => {
+  try {
+    const userPhone = req.user.phone;
+    if (!userPhone) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+    
+    // In a real production app, we would probably do a soft delete, 
+    // or delete associated chats/interests. Here we will do a hard delete for GDPR.
+    const deletedUser = await User.findOneAndDelete({ phone: userPhone });
+    if (!deletedUser) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+    
+    console.log(`[User Controller] Account deleted for user: ${userPhone}`);
+    return res.status(200).json({ status: 'success', message: 'Account permanently deleted.' });
+  } catch (error) {
+    console.error('[User Controller] Error deleting account:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to delete account' });
+  }
+};
+
+exports.updatePartnerPreferences = async (req, res) => {
+  try {
+    const userPhone = req.user.phone;
+    const preferences = req.body;
+    
+    if (!userPhone) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+    
+    await User.findOneAndUpdate(
+      { phone: userPhone },
+      { $set: { partnerPreferences: preferences } }
+    );
+    
+    return res.status(200).json({ status: 'success', message: 'Preferences updated.' });
+  } catch (error) {
+    console.error('[User Controller] Error updating preferences:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to update preferences' });
+  }
+};
+
+exports.updateHobbies = async (req, res) => {
+  try {
+    const userPhone = req.user.phone;
+    const { hobbies } = req.body;
+    
+    if (!userPhone) return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+    
+    await User.findOneAndUpdate(
+      { phone: userPhone },
+      { $set: { hobbies: hobbies || [] } }
+    );
+    
+    return res.status(200).json({ status: 'success', message: 'Hobbies updated.' });
+  } catch (error) {
+    console.error('[User Controller] Error updating hobbies:', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to update hobbies' });
   }
 };

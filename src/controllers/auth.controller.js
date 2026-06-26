@@ -26,42 +26,32 @@ exports.sendOtp = async (req, res) => {
     console.log(`[Auth] Received request to send OTP to +91 ${phone}`);
 
     // If profile exists, block OTP login and direct to password login (unless they are resetting)
-    // EXCEPTION: 9413879444 can always login via OTP (direct entry)
     const isProfileComplete = await userController.profileExists(phone);
-    if (isProfileComplete && phone !== '9413879444' && !req.body.reset) {
+    if (isProfileComplete && !req.body.reset) {
       return res.status(403).json({
         status: 'registered',
         message: 'You are already registered. Please login using your Password.'
       });
     }
 
-    // Trigger mock errors for non-bypass numbers to test robust client handling
-    if (phone !== '9413879444') {
-      requestCount++;
-
-      // Every 3rd hit on other numbers returns a Rate Limit (429) or Server Error (500)
-      if (requestCount % 3 === 0) {
-        if (requestCount % 6 === 0) {
-          console.log(`[Auth] Simulating 500 Internal Server Crash for +91 ${phone}`);
-          return res.status(500).json({
-            status: 'error',
-            message: 'Internal server error. Database connection timed out.'
-          });
-        } else {
-          console.log(`[Auth] Simulating 429 Too Many Requests (Rate Limit) for +91 ${phone}`);
-          return res.status(429).json({
-            status: 'error',
-            message: 'Rate limit exceeded. Please wait 1 minute before requesting another OTP.'
-          });
-        }
-      }
+    // Check for OTP cooldown to prevent WhatsApp bans
+    const cooldownKey = `cooldown_${phone}`;
+    const remainingCooldown = cacheService.get(cooldownKey);
+    if (remainingCooldown) {
+      return res.status(429).json({
+        status: 'error',
+        message: `Please wait before requesting another OTP to avoid spam.`
+      });
     }
 
-    // Generate OTP (For the bypass number, force 123456. Else generate a random 6-digit code)
-    const otp = phone === '9413879444' ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate OTP (For tester numbers, force 123456. Else generate a random 6-digit code)
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Cache the OTP code with a 5-minute expiry
     cacheService.set(phone, otp, 300000);
+
+    // Set 30 second cooldown to prevent WhatsApp spam ban
+    cacheService.set(cooldownKey, true, 30000);
 
     // Dispatch OTP through isolated WhatsApp Service
     await whatsappService.sendOtp(phone, otp);
@@ -95,21 +85,8 @@ exports.verifyOtp = async (req, res) => {
     // Fetch cached OTP code
     const cachedOtp = cacheService.get(phone);
 
-    // Bypass check
-    if (phone === '9413879444' && otp === '123456') {
-      cacheService.delete(phone); // invalidate
-      const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
-      
-      // Always treat developer profile as complete to bypass onboarding
-      const isProfileComplete = true; 
-
-      return res.status(200).json({
-        status: 'success',
-        message: 'OTP verified successfully',
-        token,
-        isProfileComplete
-      });
-    }
+    // Force dummy OTP 123456 ONLY for review testers if needed, else normal flow
+    // No bypass check for profile completeness
 
     // Direct check
     if (cachedOtp && cachedOtp === otp) {
@@ -264,5 +241,46 @@ exports.setPassword = async (req, res) => {
   } catch (err) {
     console.error('[Auth setPassword Error]', err);
     return res.status(500).json({ status: 'error', message: 'Failed to configure account password.' });
+  }
+};
+
+// Removed GoogleGenAI import since we are using hardcoded templates
+
+exports.generateBio = async (req, res) => {
+  try {
+    const data = req.body;
+    
+    const name = data.firstName || 'I';
+    const city = data.city || 'a nice city';
+    const profession = data.profession !== 'Not Working' ? (data.jobPost || data.profession) : 'a professional';
+    const education = data.education || 'well-educated';
+    const isFemale = data.gender === 'Female';
+    const familyText = data.aboutFamily ? ' We are a traditional yet modern Sindhi family.' : ' Coming from a well-respected Sindhi family with strong cultural roots.';
+
+    const templates = [
+      `Jai Jhulelal! I am ${name}, currently working as ${profession} in ${city}. Having completed my education (${education}), I am looking for a partner who values our Sindhi traditions while balancing modern life.${familyText}`,
+      
+      `Hello! I'm ${name}, residing in ${city}. Professionally, I am ${profession} and have always valued hard work and family. My educational background is ${education}. I'm searching for a compassionate, understanding ${isFemale ? 'groom' : 'bride'} who shares similar family-oriented Sindhi values.${familyText}`,
+      
+      `Jai Jhulelal. Belonging to a decent Sindhi family in ${city}, I am ${name}. I am ${education} qualified and currently occupied as ${profession}. Family is my top priority, and I am looking for someone who will be a great addition to ours.${familyText}`,
+      
+      `Hi, I am ${name} from ${city}. I hold a degree in ${education} and am established as ${profession}. I believe in keeping our beautiful Sindhi heritage alive and am seeking a partner who is respectful, well-cultured, and family-oriented.${familyText}`,
+      
+      `Warm greetings! I am ${name}, working as ${profession} in ${city}. My academic background is ${education}. I am looking forward to starting a beautiful new chapter of life with an understanding and loving partner who respects our rich Sindhi culture.${familyText}`,
+      
+      `Jai Jhulelal! My name is ${name}. Raised with good Sindhi values, I am currently living in ${city} and working as ${profession}. After finishing my ${education}, my goal is to find a compatible companion who believes in mutual respect and strong family bonds.${familyText}`
+    ];
+
+    // Pick a random template
+    const randomIndex = Math.floor(Math.random() * templates.length);
+    const bioText = templates[randomIndex];
+
+    return res.status(200).json({
+      status: 'success',
+      bio: bioText
+    });
+  } catch (error) {
+    console.error('[Generate Bio Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to generate bio.' });
   }
 };

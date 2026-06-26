@@ -21,4 +21,7 @@ const MessageSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// TTL index to automatically delete messages older than 15 days (15 * 24 * 60 * 60 seconds = 1296000 seconds)
+MessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 1296000 });
+
 module.exports = mongoose.model('Message', MessageSchema);
