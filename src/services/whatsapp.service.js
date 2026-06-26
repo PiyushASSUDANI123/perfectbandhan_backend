@@ -67,6 +67,16 @@ class WhatsAppService {
         return true;
       } catch (err) {
         console.error(`[WhatsApp Client] Failed to send to +91 ${phone}:`, err.message);
+        if (err.message && err.message.toLowerCase().includes('detached frame')) {
+          console.warn('[WhatsApp Service] Detached frame crash detected. Auto-recovering...');
+          this.isReady = false;
+          try {
+            await this.client.destroy();
+          } catch (destroyErr) {
+            console.error('[WhatsApp Service] Error during client destroy:', destroyErr.message);
+          }
+          setTimeout(() => this.initialize(), 3000);
+        }
       }
     }
     

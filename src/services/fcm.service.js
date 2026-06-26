@@ -1,5 +1,4 @@
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
+const admin = require('firebase-admin');
 const path = require('path');
 const fs = require('fs');
 
@@ -13,8 +12,8 @@ class FcmService {
     if (fs.existsSync(credentialsPath)) {
       try {
         const serviceAccount = require(credentialsPath);
-        initializeApp({
-          credential: cert(serviceAccount)
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount)
         });
         this.isInitialized = true;
         console.log('[FCM Service] Firebase Admin SDK initialized successfully.');
@@ -34,7 +33,7 @@ class FcmService {
           data,
           token
         };
-        const response = await getMessaging().send(message);
+        const response = await admin.messaging().send(message);
         console.log(`[FCM Notification] Push notification sent successfully. Message ID: ${response}`);
         return true;
       } catch (err) {
