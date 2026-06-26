@@ -25,6 +25,9 @@ const PORT = process.env.PORT || 3000;
 dbService.connect();
 whatsappService.initialize();
 
+const cronService = require('./services/cron.service');
+cronService.start();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log('==================================================');
   console.log(`  PERFECT BANDHAN BACKEND RUNNING ON PORT: ${PORT}`);
