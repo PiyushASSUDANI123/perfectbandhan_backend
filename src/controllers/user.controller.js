@@ -1263,7 +1263,8 @@ exports.deleteAccount = async (req, res) => {
     // or delete associated chats/interests. Here we will do a hard delete for GDPR.
     const deletedUser = await User.findOneAndDelete({ phone: userPhone });
     if (!deletedUser) {
-      return res.status(404).json({ status: 'error', message: 'User not found' });
+      console.warn(`[User Controller] User ${userPhone} not found during deletion. Treating as success for idempotent logout.`);
+      return res.status(200).json({ status: 'success', message: 'Account permanently deleted.' });
     }
     
     // Delete associated interests and messages
