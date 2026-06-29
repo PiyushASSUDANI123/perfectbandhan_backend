@@ -51,8 +51,8 @@ exports.sendOtp = async (req, res) => {
     // Cache the OTP code with a 5-minute expiry
     cacheService.set(phone, otp, 300000);
 
-    // Set 30 second cooldown to prevent WhatsApp spam ban
-    cacheService.set(cooldownKey, true, 30000);
+    // Set 60 second cooldown to prevent WhatsApp spam ban
+    cacheService.set(cooldownKey, true, 60000);
 
     // Dispatch OTP through isolated WhatsApp Service
     await whatsappService.sendOtp(phone, otp);
