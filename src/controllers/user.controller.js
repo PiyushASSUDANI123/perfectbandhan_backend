@@ -3,6 +3,7 @@ const Interest = require('../models/interest.model');
 const Message = require('../models/message.model');
 const fcmService = require('../services/fcm.service');
 const cloudinaryService = require('../services/cloudinary.service');
+const cacheService = require('../services/cache.service');
 
 exports.profileExists = async (phone) => {
   try {
@@ -382,7 +383,7 @@ exports.getProfiles = async (req, res) => {
     const offsetVal = parseInt(offset) || 0;
     
     const count = await User.countDocuments(query);
-    const paginatedResult = await mongooseQuery.skip(offsetVal).limit(limitVal);
+    const profiles = await mongooseQuery.skip(offsetVal).limit(limitVal).lean();
 
     // Fetch all connection records involving callers to determine lock state
     const interests = await Interest.find({
@@ -393,7 +394,7 @@ exports.getProfiles = async (req, res) => {
     });
 
     // 6. Privacy opt-in mapping logic
-    const privacyFilteredResult = paginatedResult.map(p => {
+    const privacyFilteredResult = profiles.map(p => {
       const profilePhone = p.phone;
 
       // Check double opt-in accepted handshake status
@@ -587,11 +588,11 @@ exports.getInterests = async (req, res) => {
     const callerPhone = req.user.phone;
     
     // Find pending interests sent to callerPhone
-    const incomingInterests = await Interest.find({ to_phone: callerPhone, status: 'pending' });
+    const incomingInterests = await Interest.find({ to_phone: callerPhone, status: 'pending' }).lean();
     const incomingPhones = incomingInterests.map(i => i.from_phone);
 
     // Fetch corresponding user profiles
-    const users = await User.find({ phone: { $in: incomingPhones } });
+    const users = await User.find({ phone: { $in: incomingPhones } }).lean();
     
     const requestingProfiles = users.map(p => {
       const today = new Date();
@@ -716,7 +717,15 @@ exports.getAllUsersAdmin = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Forbidden. Access restricted to admin only.' });
     }
 
-    const users = await User.find({}).sort({ createdAt: -1 });
+    const cacheKey = 'adminAllUsers';
+    const cachedUsers = cacheService.get(cacheKey);
+    if (cachedUsers) {
+      return res.status(200).json({ status: 'success', data: cachedUsers });
+    }
+
+    const users = await User.find({}).sort({ createdAt: -1 }).lean();
+    cacheService.set(cacheKey, users, 300); // 5 mins cache
+
     return res.status(200).json({
       status: 'success',
       data: users
@@ -833,7 +842,7 @@ exports.getChatMessages = async (req, res) => {
         { sender: caller._id, receiver: targetUserId },
         { sender: targetUserId, receiver: caller._id }
       ]
-    }).sort({ createdAt: 1 });
+    }).sort({ createdAt: 1 }).lean();
 
     return res.status(200).json({
       status: 'success',
@@ -889,7 +898,6 @@ exports.sendChatMessage = async (req, res) => {
       await caller.save();
     }
 
-    const Message = require('../models/message.model');
     const message = new Message({
       sender: caller._id,
       receiver: targetUserId,
@@ -930,7 +938,7 @@ exports.adminBroadcastPush = async (req, res) => {
 
     console.log(`[Admin Push Broadcast] Message: "${message}"`);
     try {
-      const users = await User.find({ phone: { $ne: adminPhone } });
+      const users = await User.find({ phone: { $ne: adminPhone } }).lean();
       for (const u of users) {
         console.log(`[FCM Mock Broadcast] Dispatched notification to +91 ${u.phone}: "${message}"`);
       }
@@ -1053,7 +1061,7 @@ exports.getConversations = async (req, res) => {
         { sender: caller._id },
         { receiver: caller._id }
       ]
-    });
+    }).lean();
 
     const userIds = new Set();
     messages.forEach(m => {
@@ -1081,7 +1089,7 @@ exports.getConversations = async (req, res) => {
       }
     }
 
-    const users = await User.find({ _id: { $in: Array.from(userIds) } });
+    const users = await User.find({ _id: { $in: Array.from(userIds) } }).lean();
 
     const conversations = users.map(p => {
       const today = new Date();
@@ -1152,20 +1160,31 @@ const AppConfig = require('../models/config.model');
 // GET /api/v1/user/app-config  (Public - client checks this on startup)
 exports.getAppConfig = async (req, res) => {
   try {
+    const cacheKey = 'appConfig';
+    const cachedConfig = cacheService.get(cacheKey);
+    if (cachedConfig) {
+      return res.status(200).json({ status: 'success', data: cachedConfig });
+    }
+
     // Get the first (and only) config document, or return defaults
     let config = await AppConfig.findOne({});
     if (!config) {
       config = await AppConfig.create({});
     }
+    
+    const configData = {
+      latestVersion: config.latestVersion,
+      minVersion: config.minVersion,
+      forceUpdate: config.forceUpdate,
+      updateMessage: config.updateMessage,
+      downloadUrl: config.downloadUrl,
+    };
+    
+    cacheService.set(cacheKey, configData, 3600); // Cache for 1 hour
+
     return res.status(200).json({
       status: 'success',
-      data: {
-        latestVersion: config.latestVersion,
-        minVersion: config.minVersion,
-        forceUpdate: config.forceUpdate,
-        updateMessage: config.updateMessage,
-        downloadUrl: config.downloadUrl,
-      }
+      data: configData
     });
   } catch (error) {
     console.error('[User Controller getAppConfig Error]', error);
@@ -1197,6 +1216,8 @@ exports.updateAppConfig = async (req, res) => {
       { upsert: true, new: true }
     );
 
+    cacheService.delete('appConfig'); // Invalidate config cache
+    
     console.log(`[Admin] App config updated:`, updateFields);
     return res.status(200).json({
       status: 'success',

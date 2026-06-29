@@ -1,48 +1,38 @@
+const NodeCache = require('node-cache');
+
+// Standard TTL of 5 minutes (300 seconds), check for expired keys every 320s
+const nodeCache = new NodeCache({ stdTTL: 300, checkperiod: 320 });
+
 class CacheService {
-  constructor() {
-    this.store = new Map();
-    this.timeouts = new Map();
-  }
-
-  // Set a key-value pair with a TTL (Time-To-Live) in milliseconds
-  set(key, value, ttlMs = 300000) {
-    // Clear any existing timeout for this key
-    if (this.timeouts.has(key)) {
-      clearTimeout(this.timeouts.get(key));
-    }
-
-    this.store.set(key, value);
-
-    // Auto-expiry timeout
-    const timeout = setTimeout(() => {
-      this.delete(key);
-      console.log(`[CacheService] Key "${key}" expired and deleted.`);
-    }, ttlMs);
-
-    this.timeouts.set(key, timeout);
-  }
-
-  // Get key value
+  /**
+   * Get a cached value
+   */
   get(key) {
-    return this.store.get(key);
+    return nodeCache.get(key);
   }
 
-  // Delete key
+  /**
+   * Set a cached value
+   * @param {string} key 
+   * @param {any} value 
+   * @param {number} [ttlMs] - For backwards compatibility with ms, convert to seconds
+   */
+  set(key, value, ttlMs = 300000) {
+    nodeCache.set(key, value, ttlMs / 1000);
+  }
+
+  /**
+   * Delete a cached value
+   */
   delete(key) {
-    if (this.timeouts.has(key)) {
-      clearTimeout(this.timeouts.get(key));
-      this.timeouts.delete(key);
-    }
-    return this.store.delete(key);
+    return nodeCache.del(key);
   }
 
-  // Clear everything
+  /**
+   * Clear everything
+   */
   clear() {
-    for (const timeout of this.timeouts.values()) {
-      clearTimeout(timeout);
-    }
-    this.store.clear();
-    this.timeouts.clear();
+    nodeCache.flushAll();
   }
 }
 

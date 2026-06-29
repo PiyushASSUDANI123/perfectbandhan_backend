@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const compression = require('compression');
+const helmet = require('helmet');
 const { rateLimit } = require('express-rate-limit');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
@@ -38,11 +39,26 @@ const otpRateLimiter = rateLimit({
   }
 });
 
+// ─── Global Rate Limiter ───────────────────────────────────────────────────────
+// Limits all generic requests to 500 per IP per 10 minutes to prevent DDoS
+const globalRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 500,                 // 500 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 'error',
+    message: 'Too many requests from this IP. Please try again after 10 minutes.'
+  }
+});
+
 // Standard Apple-minimal server middleware
+app.use(helmet()); // Secure HTTP headers
 app.use(cors());
 app.use(compression());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use('/api', globalRateLimiter); // Apply global limit to API routes
 
 // Root simple health check
 app.get('/', (req, res) => {
