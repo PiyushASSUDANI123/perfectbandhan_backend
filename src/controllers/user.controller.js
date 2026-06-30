@@ -179,18 +179,12 @@ exports.createProfile = async (req, res) => {
       const incomingDob = profileData.dob ? new Date(profileData.dob).toDateString() : null;
       const savedDob = existingUser.dob ? existingUser.dob.toDateString() : null;
       if (incomingDob && savedDob && incomingDob !== savedDob) {
-        console.warn(`[User Controller] Blocked immutable field change: dob for +91 ${profileData.phone}`);
-        return res.status(400).json({
-          status: 'error',
-          message: 'Date of Birth cannot be modified after account creation. Please contact support.'
-        });
+        console.warn(`[User Controller] Ignoring dob change during profile update for +91 ${profileData.phone}`);
+        delete profileData.dob; // Ignore silently instead of blocking
       }
-      if (profileData.gender && profileData.gender !== existingUser.gender) {
-        console.warn(`[User Controller] Blocked immutable field change: gender for +91 ${profileData.phone}`);
-        return res.status(400).json({
-          status: 'error',
-          message: 'Gender cannot be modified after account creation. Please contact support.'
-        });
+      if (profileData.gender && existingUser.gender && profileData.gender !== existingUser.gender) {
+        console.warn(`[User Controller] Ignoring gender change during profile update for +91 ${profileData.phone}`);
+        delete profileData.gender; // Ignore silently instead of blocking
       }
     }
 
