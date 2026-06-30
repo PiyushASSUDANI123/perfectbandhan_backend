@@ -20,6 +20,7 @@ router.post('/unblock', auth, userController.unblockUser);
 router.get('/blocked', auth, userController.getBlockedUsers);
 router.post('/report', auth, userController.reportUser);
 router.get('/reports', auth, userController.getReports);
+router.get('/blocks', auth, userController.getBlocks);
 
 // Admin Portal Routes
 router.get('/admin/users', auth, userController.getAllUsersAdmin);

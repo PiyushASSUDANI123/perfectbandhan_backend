@@ -1427,15 +1427,27 @@ exports.trackActivity = async (req, res) => {
 exports.blockUser = async (req, res) => {
   try {
     const callerPhone = req.user.phone;
-    const { targetPhone } = req.body;
+    const { targetPhone, reason, details } = req.body;
     
-    if (!targetPhone) return res.status(400).json({ status: 'error', message: 'Target phone required.' });
+    if (!targetPhone || !reason) {
+      return res.status(400).json({ status: 'error', message: 'Target phone and reason are required.' });
+    }
     
+    const Block = require('../models/block.model');
+
     // Add to caller's blockedUsers
     await User.updateOne({ phone: callerPhone }, { $addToSet: { blockedUsers: targetPhone } });
     // Add to target's blockedBy
     await User.updateOne({ phone: targetPhone }, { $addToSet: { blockedBy: callerPhone } });
     
+    const newBlock = new Block({
+      blockerPhone: callerPhone,
+      blockedPhone: targetPhone,
+      reason: reason,
+      details: details || ''
+    });
+    await newBlock.save();
+
     return res.status(200).json({ status: 'success', message: 'User blocked successfully.' });
   } catch (error) {
     console.error('[User Controller blockUser Error]', error);
@@ -1520,6 +1532,18 @@ exports.getReports = async (req, res) => {
     return res.status(200).json({ status: 'success', data: reports });
   } catch (error) {
     console.error('[User Controller getReports Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// GET /api/v1/user/blocks (Admin)
+exports.getBlocks = async (req, res) => {
+  try {
+    const Block = require('../models/block.model');
+    const blocks = await Block.find().sort({ createdAt: -1 }).lean();
+    return res.status(200).json({ status: 'success', data: blocks });
+  } catch (error) {
+    console.error('[User Controller getBlocks Error]', error);
     return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
