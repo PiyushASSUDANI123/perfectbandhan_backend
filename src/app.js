@@ -6,8 +6,10 @@ const helmet = require('helmet');
 const { rateLimit } = require('express-rate-limit');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
 const app = express();
+app.set('trust proxy', 1); // Fixes express-rate-limit error behind Nginx/Proxy
 
 // ─── Global 10-Second Request Timeout Middleware ──────────────────────────────
 // If any route takes more than 10s, send 504 to prevent resource exhaustion
@@ -76,6 +78,7 @@ app.get('/privacy', (req, res) => {
 // Endpoint prefixes mapping
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // Catch JSON parsing/limit errors gracefully
 app.use((err, req, res, next) => {
