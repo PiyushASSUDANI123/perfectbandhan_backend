@@ -294,6 +294,9 @@ const UserSchema = new mongoose.Schema({
     default: ''
   }
 }, {
+  profileVisits: { type: Number, default: 0 },
+  contactViews: { type: Number, default: 0 }
+}, {
   timestamps: true
 });
 

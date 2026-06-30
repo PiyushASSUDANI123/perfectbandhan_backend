@@ -10,6 +10,8 @@ router.get('/profiles', auth, userController.getProfiles);
 // Double Opt-In Interest Routes
 router.post('/interest', auth, userController.sendInterest);
 router.get('/interests', auth, userController.getInterests);
+router.get('/activity', auth, userController.getActivity);
+router.post('/track-activity', auth, userController.trackActivity);
 router.post('/interest/accept', auth, userController.acceptInterest);
 
 // Admin Portal Routes

@@ -1331,3 +1331,80 @@ exports.updateHobbies = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Failed to update hobbies' });
   }
 };
+
+// GET /api/v1/user/activity
+exports.getActivity = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    
+    // Get user stats
+    const user = await User.findOne({ phone: callerPhone }).lean();
+    if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
+
+    // Get sent interests (pending)
+    const sentInterestDocs = await Interest.find({ from_phone: callerPhone, status: 'pending' }).lean();
+    const sentPhones = sentInterestDocs.map(i => i.to_phone);
+    const sentUsers = await User.find({ phone: { $in: sentPhones } }).lean();
+    
+    // Get accepted interests (mutual)
+    const acceptedInterestDocs = await Interest.find({
+      $or: [{ from_phone: callerPhone }, { to_phone: callerPhone }],
+      status: 'accepted'
+    }).lean();
+    
+    const acceptedPhones = acceptedInterestDocs.map(i => i.from_phone === callerPhone ? i.to_phone : i.from_phone);
+    const acceptedUsers = await User.find({ phone: { $in: acceptedPhones } }).lean();
+
+    const formatProfile = (p, status) => {
+      const today = new Date();
+      let age = today.getFullYear() - p.dob.getFullYear();
+      return {
+        id: p._id.toString(),
+        name: `${p.firstName} ${p.lastName}`,
+        age: age,
+        height: p.height || '',
+        caste: p.caste || '',
+        profession: p.profession || '',
+        location: p.location || '',
+        photos: p.uploadedPhotos || [],
+        phone: p.phone || '',
+        whatsappNumber: p.whatsappNumber || '',
+        interestStatus: status
+      };
+    };
+
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        profileVisits: user.profileVisits || 0,
+        contactViews: user.contactViews || 0,
+        sentInterests: sentUsers.map(p => formatProfile(p, 'sent')),
+        acceptedInterests: acceptedUsers.map(p => formatProfile(p, 'accepted'))
+      }
+    });
+  } catch (error) {
+    console.error('[User Controller getActivity Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// POST /api/v1/user/track-activity
+exports.trackActivity = async (req, res) => {
+  try {
+    const { targetPhone, type } = req.body;
+    if (!targetPhone || !type) {
+      return res.status(400).json({ status: 'error', message: 'Missing fields' });
+    }
+    
+    if (type === 'profile_visit') {
+      await User.updateOne({ phone: targetPhone }, { $inc: { profileVisits: 1 } });
+    } else if (type === 'contact_view') {
+      await User.updateOne({ phone: targetPhone }, { $inc: { contactViews: 1 } });
+    }
+    
+    return res.status(200).json({ status: 'success' });
+  } catch (error) {
+    console.error('[User Controller trackActivity Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
