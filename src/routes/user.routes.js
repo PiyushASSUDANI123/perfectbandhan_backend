@@ -14,12 +14,15 @@ router.get('/activity', auth, userController.getActivity);
 router.post('/track-activity', auth, userController.trackActivity);
 router.post('/interest/accept', auth, userController.acceptInterest);
 
+// --- MODERATION ---
+router.post('/block', auth, userController.blockUser);
+router.post('/unblock', auth, userController.unblockUser);
+router.get('/blocked', auth, userController.getBlockedUsers);
+router.post('/report', auth, userController.reportUser);
+router.get('/reports', auth, userController.getReports);
+
 // Admin Portal Routes
 router.get('/admin/users', auth, userController.getAllUsersAdmin);
-
-// UGC Safety Block and Report Routes
-router.post('/report', auth, userController.reportUser);
-router.post('/block', auth, userController.blockUser);
 
 // Password Management
 router.post('/password', auth, userController.changePassword);

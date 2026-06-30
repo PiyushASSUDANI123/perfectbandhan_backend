@@ -285,6 +285,10 @@ const UserSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  blockedUsers: {
+    type: [String],
+    default: []
+  },
   isActive: {
     type: Boolean,
     default: true

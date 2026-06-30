@@ -283,6 +283,7 @@ exports.getProfiles = async (req, res) => {
       gender: oppositeGender, 
       profileHidden: { $ne: true }, 
       maritalStatus: { $ne: 'Married' },
+      phone: { $nin: callerProfile ? callerProfile.blockedBy : [] },
       reportedBy: { $ne: callerPhone },
       blockedBy: { $ne: callerPhone }
     };
@@ -585,8 +586,14 @@ exports.getInterests = async (req, res) => {
     const incomingInterests = await Interest.find({ to_phone: callerPhone, status: 'pending' }).lean();
     const incomingPhones = incomingInterests.map(i => i.from_phone);
 
+    const caller = await User.findOne({ phone: callerPhone }).lean();
+    const blocked = caller ? (caller.blockedUsers || []) : [];
+
     // Fetch corresponding user profiles
-    const users = await User.find({ phone: { $in: incomingPhones } }).lean();
+    const users = await User.find({ 
+      phone: { $in: incomingPhones, $nin: blocked },
+      blockedBy: { $ne: callerPhone }
+    }).lean();
     
     const requestingProfiles = users.map(p => {
       const today = new Date();
@@ -1083,7 +1090,12 @@ exports.getConversations = async (req, res) => {
       }
     }
 
-    const users = await User.find({ _id: { $in: Array.from(userIds) } }).lean();
+    const blocked = caller.blockedUsers || [];
+    const users = await User.find({ 
+      _id: { $in: Array.from(userIds) },
+      phone: { $nin: blocked },
+      blockedBy: { $ne: callerPhone }
+    }).lean();
 
     const conversations = users.map(p => {
       const today = new Date();
@@ -1405,6 +1417,109 @@ exports.trackActivity = async (req, res) => {
     return res.status(200).json({ status: 'success' });
   } catch (error) {
     console.error('[User Controller trackActivity Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// --- MODERATION ---
+
+// POST /api/v1/user/block
+exports.blockUser = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const { targetPhone } = req.body;
+    
+    if (!targetPhone) return res.status(400).json({ status: 'error', message: 'Target phone required.' });
+    
+    // Add to caller's blockedUsers
+    await User.updateOne({ phone: callerPhone }, { $addToSet: { blockedUsers: targetPhone } });
+    // Add to target's blockedBy
+    await User.updateOne({ phone: targetPhone }, { $addToSet: { blockedBy: callerPhone } });
+    
+    return res.status(200).json({ status: 'success', message: 'User blocked successfully.' });
+  } catch (error) {
+    console.error('[User Controller blockUser Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// POST /api/v1/user/unblock
+exports.unblockUser = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const { targetPhone } = req.body;
+    
+    if (!targetPhone) return res.status(400).json({ status: 'error', message: 'Target phone required.' });
+    
+    await User.updateOne({ phone: callerPhone }, { $pull: { blockedUsers: targetPhone } });
+    await User.updateOne({ phone: targetPhone }, { $pull: { blockedBy: callerPhone } });
+    
+    return res.status(200).json({ status: 'success', message: 'User unblocked successfully.' });
+  } catch (error) {
+    console.error('[User Controller unblockUser Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// GET /api/v1/user/blocked
+exports.getBlockedUsers = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const caller = await User.findOne({ phone: callerPhone }).lean();
+    if (!caller) return res.status(404).json({ status: 'error', message: 'User not found' });
+    
+    const blockedPhones = caller.blockedUsers || [];
+    const users = await User.find({ phone: { $in: blockedPhones } }).lean();
+    
+    const formatted = users.map(p => ({
+      id: p._id.toString(),
+      name: `${p.firstName} ${p.lastName}`,
+      phone: p.phone,
+      location: p.location,
+      photos: p.uploadedPhotos || []
+    }));
+    
+    return res.status(200).json({ status: 'success', data: formatted });
+  } catch (error) {
+    console.error('[User Controller getBlockedUsers Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// POST /api/v1/user/report
+exports.reportUser = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const { targetPhone, reason, details } = req.body;
+    
+    if (!targetPhone || !reason) {
+      return res.status(400).json({ status: 'error', message: 'Target phone and reason are required.' });
+    }
+    
+    const Report = require('../models/report.model');
+    const newReport = new Report({
+      reporterPhone: callerPhone,
+      reportedPhone: targetPhone,
+      reason,
+      details
+    });
+    await newReport.save();
+    
+    return res.status(200).json({ status: 'success', message: 'User reported successfully.' });
+  } catch (error) {
+    console.error('[User Controller reportUser Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// GET /api/v1/user/reports (Admin)
+exports.getReports = async (req, res) => {
+  try {
+    const Report = require('../models/report.model');
+    const reports = await Report.find().sort({ createdAt: -1 }).lean();
+    return res.status(200).json({ status: 'success', data: reports });
+  } catch (error) {
+    console.error('[User Controller getReports Error]', error);
     return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
