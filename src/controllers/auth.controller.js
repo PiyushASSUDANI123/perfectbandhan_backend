@@ -45,8 +45,8 @@ exports.sendOtp = async (req, res) => {
       });
     }
 
-    // Generate OTP (For tester numbers, force 123456. Else generate a random 6-digit code)
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate OTP (For tester numbers, force 1234. Else generate a random 4-digit code)
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
     // Cache the OTP code with a 5-minute expiry
     cacheService.set(phone, otp, 300000);
@@ -86,7 +86,7 @@ exports.verifyOtp = async (req, res) => {
     // Fetch cached OTP code
     const cachedOtp = cacheService.get(phone);
 
-    // Force dummy OTP 123456 ONLY for review testers if needed, else normal flow
+    // Force dummy OTP 1234 ONLY for review testers if needed, else normal flow
     // No bypass check for profile completeness
 
     // Direct check
@@ -128,7 +128,7 @@ exports.loginWithPassword = async (req, res) => {
 
     console.log(`[Auth] Validating password credentials for +91 ${phone}`);
 
-    const adminPhone = process.env.ADMIN_PHONE || '1234567890';
+    const adminPhone = process.env.ADMIN_PHONE || '12347890';
     const adminPassword = process.env.ADMIN_PASSWORD || 'piyushassudani@96';
 
     if (phone === adminPhone && password === adminPassword) {
@@ -143,7 +143,7 @@ exports.loginWithPassword = async (req, res) => {
       });
     }
 
-    if (phone === '9413879444' && password === '123456') {
+    if (phone === '9413879444' && password === '1234') {
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
       // Hardcode isProfileComplete to false so it always goes directly to the form
       return res.status(200).json({
@@ -154,11 +154,11 @@ exports.loginWithPassword = async (req, res) => {
       });
     }
 
-    // Support password login for any registered profile with custom password (or standard password bypass 123456)
+    // Support password login for any registered profile with custom password (or standard password bypass 1234)
     const userProfile = await userController.getProfile(phone);
     if (userProfile) {
       const dbPassword = userProfile.password || '';
-      if (password === '123456' || (dbPassword && password === dbPassword)) {
+      if (password === '1234' || (dbPassword && password === dbPassword)) {
         const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
         const isProfileComplete = true;
         return res.status(200).json({
