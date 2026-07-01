@@ -9,7 +9,7 @@ const userRoutes = require('./routes/user.routes');
 const notificationRoutes = require('./routes/notification.routes');
 
 const app = express();
-app.set('trust proxy', 1); // Fixes express-rate-limit error behind Nginx/Proxy
+app.set('trust proxy', true); // Fixes express-rate-limit error behind Nginx/Proxy
 
 // ─── Global 10-Second Request Timeout Middleware ──────────────────────────────
 // If any route takes more than 10s, send 504 to prevent resource exhaustion
@@ -35,7 +35,7 @@ const otpRateLimiter = rateLimit({
   max: 5,              // max 5 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false, xForwardedForHeader: false },
+  validate: false,
   message: {
     status: 'error',
     message: 'Too many OTP requests from this IP. Please wait 1 minute before trying again.'
@@ -49,7 +49,7 @@ const globalRateLimiter = rateLimit({
   max: 500,                 // 500 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false, xForwardedForHeader: false },
+  validate: false,
   message: {
     status: 'error',
     message: 'Too many requests from this IP. Please try again after 10 minutes.'
