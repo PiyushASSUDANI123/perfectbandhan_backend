@@ -2,7 +2,7 @@ const cacheService = require('../services/cache.service');
 const jwt = require('jsonwebtoken');
 const userController = require('./user.controller');
 const whatsappService = require('../services/whatsapp.service');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -254,9 +254,7 @@ exports.generateBio = async (req, res) => {
     // Check if API key exists, otherwise fallback to templates
     if (process.env.GEMINI_API_KEY) {
       try {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const prompt = `Write a short, engaging, and professional matrimonial bio for a Sindhi matchmaking profile. 
         Name: ${data.firstName || 'Not specified'}
         Gender: ${data.gender || 'Not specified'}
@@ -267,8 +265,11 @@ exports.generateBio = async (req, res) => {
         
         The tone should be polite, respectful, and slightly modern while valuing Sindhi traditions. Do NOT use emojis. Keep it under 60 words. Speak in first-person (e.g. "I am...").`;
 
-        const result = await model.generateContent(prompt);
-        let bioText = result.response.text().trim();
+        const result = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt
+        });
+        let bioText = result.text.trim();
         // Remove markdown formatting if any
         bioText = bioText.replace(/\*/g, '');
 
