@@ -25,6 +25,22 @@ const AppConfigSchema = new mongoose.Schema({
   downloadUrl: {
     type: String,
     default: 'https://play.google.com/store/apps/details?id=com.piyush.assudani'
+  },
+  isMaintenanceMode: {
+    type: Boolean,
+    default: false
+  },
+  maintenanceMessage: {
+    type: String,
+    default: 'Software under maintenance, come back later.'
+  },
+  globalBannerEnabled: {
+    type: Boolean,
+    default: false
+  },
+  globalBannerMessage: {
+    type: String,
+    default: 'Welcome to Perfect Bandhan!'
   }
 }, {
   timestamps: true
