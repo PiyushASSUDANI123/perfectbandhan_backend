@@ -250,6 +250,7 @@ exports.setPassword = async (req, res) => {
 exports.generateBio = async (req, res) => {
   try {
     const data = req.body;
+    console.log(`[Auth] Received AI bio generation request for name: ${data.firstName || 'Unknown'}`);
     
     // Check if API key exists, otherwise fallback to templates
     if (process.env.GEMINI_API_KEY) {
