@@ -1584,3 +1584,28 @@ exports.getBlocks = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+
+exports.adminDeleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const User = require('../models/user.model');
+    const Interest = require('../models/interest.model');
+    const Message = require('../models/message.model');
+    
+    const deletedUser = await User.findByIdAndDelete(id);
+    if (!deletedUser) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+    
+    // Delete associated interests and messages
+    await Interest.deleteMany({ $or: [{ from_phone: deletedUser.phone }, { to_phone: deletedUser.phone }] });
+    await Message.deleteMany({ $or: [{ sender: deletedUser._id }, { receiver: deletedUser._id }] });
+    
+    console.log(`[Admin] Deleted user: ${deletedUser.phone}`);
+    return res.status(200).json({ status: 'success', message: 'User permanently deleted.' });
+  } catch (error) {
+    console.error('[Admin] Error deleting user:', error);
+    return res.status(500).json({ status: 'error', message: 'Internal server error.' });
+  }
+};
