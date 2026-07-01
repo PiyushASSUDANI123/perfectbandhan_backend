@@ -1609,3 +1609,31 @@ exports.adminDeleteUser = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Internal server error.' });
   }
 };
+
+
+exports.developerToggleGender = async (req, res) => {
+  try {
+    const userPhone = req.user.phone;
+    // IMPORTANT: Hardcode the developer phone number here. 
+    // This assumes the developer uses '9999999999' as their test account.
+    // If they use a different number, they can update this.
+    const DEVELOPER_TEST_PHONE = '9999999999';
+    
+    if (userPhone !== DEVELOPER_TEST_PHONE) {
+      return res.status(403).json({ status: 'error', message: 'Forbidden. This action is only allowed for the developer test account.' });
+    }
+
+    const User = require('../models/user.model');
+    const user = await User.findOne({ phone: userPhone });
+    if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
+
+    user.gender = user.gender === 'Male' ? 'Female' : 'Male';
+    await user.save();
+    
+    console.log(`[Developer] Toggled gender to ${user.gender} for developer account ${userPhone}`);
+    return res.status(200).json({ status: 'success', message: 'Gender toggled successfully', newGender: user.gender });
+  } catch (error) {
+    console.error('[Developer] Error toggling gender:', error);
+    return res.status(500).json({ status: 'error', message: 'Internal server error.' });
+  }
+};
