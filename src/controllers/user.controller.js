@@ -1204,8 +1204,6 @@ exports.getConversations = async (req, res) => {
 
 // ─── App Version & Update Management ─────────────────────────────────────────
 
-const AppConfig = require('../models/config.model');
-
 // GET /api/v1/user/app-config  (Public - client checks this on startup)
 exports.getAppConfig = async (req, res) => {
   try {
@@ -1596,12 +1594,6 @@ exports.adminDeleteUser = async (req, res) => {
   try {
     const { id } = req.params;
     const User = require('../models/user.model');
-const AppConfig = require('../models/config.model');
-
-// In-Memory Cache for AppConfig to protect database limits
-let _cachedAppConfig = null;
-let _lastCacheUpdate = 0;
-const CACHE_TTL = 60000; // 60 seconds backup TTL, but mostly updated immediately by admin
     const Interest = require('../models/interest.model');
     const Message = require('../models/message.model');
     
@@ -1636,12 +1628,6 @@ exports.developerToggleGender = async (req, res) => {
     }
 
     const User = require('../models/user.model');
-const AppConfig = require('../models/config.model');
-
-// In-Memory Cache for AppConfig to protect database limits
-let _cachedAppConfig = null;
-let _lastCacheUpdate = 0;
-const CACHE_TTL = 60000; // 60 seconds backup TTL, but mostly updated immediately by admin
     const user = await User.findOne({ phone: userPhone });
     if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
 
