@@ -255,7 +255,7 @@ exports.generateBio = async (req, res) => {
     if (process.env.GEMINI_API_KEY) {
       try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
         const prompt = `Write a short, engaging, and professional matrimonial bio for a Sindhi matchmaking profile. 
         Name: ${data.firstName || 'Not specified'}

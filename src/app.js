@@ -35,7 +35,7 @@ const otpRateLimiter = rateLimit({
   max: 5,              // max 5 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  validate: false,
+  validate: { xForwardedForHeader: false, trustProxy: false, default: false },
   message: {
     status: 'error',
     message: 'Too many OTP requests from this IP. Please wait 1 minute before trying again.'
@@ -49,7 +49,7 @@ const globalRateLimiter = rateLimit({
   max: 500,                 // 500 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  validate: false,
+  validate: { xForwardedForHeader: false, trustProxy: false, default: false },
   message: {
     status: 'error',
     message: 'Too many requests from this IP. Please try again after 10 minutes.'
