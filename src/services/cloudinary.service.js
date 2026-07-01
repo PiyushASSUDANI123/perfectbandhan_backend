@@ -1,4 +1,5 @@
 const cloudinary = require('cloudinary').v2;
+const sharp = require('sharp');
 
 // Configure Cloudinary from environment configurations
 cloudinary.config({
@@ -28,10 +29,26 @@ class CloudinaryService {
     }
 
     try {
+      // Compress the image before uploading if it is a valid base64 string
+      let uploadString = base64Str;
+      const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      
+      if (matches && matches.length === 3) {
+        const imageBuffer = Buffer.from(matches[2], 'base64');
+        const compressedBuffer = await sharp(imageBuffer)
+          .resize({ width: 800, withoutEnlargement: true })
+          .webp({ quality: 80 })
+          .toBuffer();
+          
+        uploadString = `data:image/webp;base64,${compressedBuffer.toString('base64')}`;
+      }
+
       // Cloudinary uploader supports direct base64 data URI string uploads
-      const uploadResponse = await cloudinary.uploader.upload(base64Str, {
+      const uploadResponse = await cloudinary.uploader.upload(uploadString, {
         folder: 'sindhi_shadi/profiles',
-        resource_type: 'image'
+        resource_type: 'image',
+        quality: 'auto',
+        fetch_format: 'auto'
       });
       return uploadResponse.secure_url;
     } catch (err) {

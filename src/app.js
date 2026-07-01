@@ -35,6 +35,7 @@ const otpRateLimiter = rateLimit({
   max: 5,              // max 5 requests per window
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false, xForwardedForHeader: false },
   message: {
     status: 'error',
     message: 'Too many OTP requests from this IP. Please wait 1 minute before trying again.'
@@ -48,6 +49,7 @@ const globalRateLimiter = rateLimit({
   max: 500,                 // 500 requests per window
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false, xForwardedForHeader: false },
   message: {
     status: 'error',
     message: 'Too many requests from this IP. Please try again after 10 minutes.'
@@ -58,8 +60,8 @@ const globalRateLimiter = rateLimit({
 app.use(helmet()); // Secure HTTP headers
 app.use(cors());
 app.use(compression());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/api', globalRateLimiter); // Apply global limit to API routes
 
 // Root simple health check

@@ -367,6 +367,43 @@ exports.getProfiles = async (req, res) => {
       query.sindhiType = { $regex: sindhiType.trim(), $options: 'i' };
     }
 
+    // 8. Partner Preferences Logic (when recommendations === 'true')
+    if (recommendations === 'true' && callerProfile && callerProfile.partnerPreferences) {
+      const prefs = callerProfile.partnerPreferences;
+
+      // Age Range from Preferences
+      if (prefs.minAge || prefs.maxAge) {
+        const today = new Date();
+        const dobFilter = {};
+        if (prefs.minAge) {
+          const maxDob = new Date(today.getFullYear() - parseInt(prefs.minAge), today.getMonth(), today.getDate());
+          dobFilter.$lte = maxDob;
+        }
+        if (prefs.maxAge) {
+          const minDob = new Date(today.getFullYear() - parseInt(prefs.maxAge) - 1, today.getMonth(), today.getDate());
+          dobFilter.$gte = minDob;
+        }
+        query.dob = dobFilter;
+      }
+
+      // City/State from Preferences
+      if (prefs.state && prefs.state !== 'Not set') {
+        // Broad search matching either city or state strings
+        query.location = { $regex: prefs.state.replace('- All', '').trim(), $options: 'i' };
+      }
+
+      // Exclude Nukh
+      if (prefs.excludeNukh && prefs.excludeNukh.trim() !== '') {
+        const nukhs = prefs.excludeNukh.split(',').map(n => n.trim()).filter(n => n);
+        if (nukhs.length > 0) {
+          const regexes = nukhs.map(n => `^(?!.*${n}).*`);
+          // Join the regexes to ensure none of the excluded nukhs match
+          query.caste = { $regex: regexes.join(''), $options: 'i' };
+          query.firstName = { $regex: regexes.join(''), $options: 'i' };
+        }
+      }
+    }
+
     // Sorting recommendations by compatibility score
     let mongooseQuery = User.find(query).select('-password');
     if (recommendations === 'true') {
