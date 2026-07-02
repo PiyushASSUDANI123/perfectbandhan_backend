@@ -41,6 +41,10 @@ const AppConfigSchema = new mongoose.Schema({
   globalBannerMessage: {
     type: String,
     default: 'Welcome to Perfect Bandhan!'
+  },
+  developerBypassPassword: {
+    type: String,
+    default: '123456'
   }
 }, {
   timestamps: true

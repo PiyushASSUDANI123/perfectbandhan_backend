@@ -1,5 +1,6 @@
 const User = require('../models/user.model');
 const AppConfig = require('../models/config.model');
+const authController = require('./auth.controller');
 
 // In-Memory Cache for AppConfig to protect database limits
 let _cachedAppConfig = null;
@@ -616,6 +617,42 @@ exports.sendInterest = async (req, res) => {
   }
 };
 
+// POST /api/v1/user/interest/cancel (Cancel pending interest)
+exports.cancelInterest = async (req, res) => {
+  try {
+    if (!req.user || !req.user.phone) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized. Authentication token is missing.' });
+    }
+
+    const callerPhone = req.user.phone;
+    const { targetPhone } = req.body;
+
+    if (!targetPhone) {
+      return res.status(400).json({ status: 'error', message: 'targetPhone is required.' });
+    }
+
+    const deleted = await Interest.findOneAndDelete({
+      from_phone: callerPhone,
+      to_phone: targetPhone,
+      status: 'pending'
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ status: 'error', message: 'Pending interest request not found.' });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Interest request cancelled successfully.',
+      interestStatus: 'none'
+    });
+  } catch (error) {
+    console.error('[User Controller cancelInterest Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to cancel interest.' });
+  }
+};
+
+
 // GET /api/v1/user/interests (Get incoming pending interests)
 exports.getInterests = async (req, res) => {
   try {
@@ -851,7 +888,11 @@ exports.changePassword = async (req, res) => {
     }
 
     const dbPassword = user.password || '';
-    const isValid = currentPassword === '1234' || (dbPassword && currentPassword === dbPassword);
+    
+    const config = await AppConfig.findOne();
+    const bypassPassword = config?.developerBypassPassword || '123456';
+
+    const isValid = currentPassword === bypassPassword || (dbPassword && currentPassword === dbPassword);
     if (!isValid) {
       return res.status(400).json({ status: 'error', message: 'Incorrect current password.' });
     }
@@ -1426,11 +1467,16 @@ exports.getActivity = async (req, res) => {
       };
     };
 
+    const visitedByUsers = await User.find({ phone: { $in: user.visitedBy || [] } }).lean();
+    const contactViewedByUsers = await User.find({ phone: { $in: user.contactViewedBy || [] } }).lean();
+
     return res.status(200).json({
       status: 'success',
       data: {
         profileVisits: user.profileVisits || 0,
         contactViews: user.contactViews || 0,
+        profileVisitsList: visitedByUsers.map(p => formatProfile(p, 'none')),
+        contactViewsList: contactViewedByUsers.map(p => formatProfile(p, 'none')),
         sentInterests: sentUsers.map(p => formatProfile(p, 'sent')),
         acceptedInterests: acceptedUsers.map(p => formatProfile(p, 'accepted'))
       }
@@ -1450,9 +1496,15 @@ exports.trackActivity = async (req, res) => {
     }
     
     if (type === 'profile_visit') {
-      await User.updateOne({ phone: targetPhone }, { $inc: { profileVisits: 1 } });
+      await User.updateOne({ phone: targetPhone }, { 
+        $inc: { profileVisits: 1 },
+        $addToSet: { visitedBy: req.user.phone }
+      });
     } else if (type === 'contact_view') {
-      await User.updateOne({ phone: targetPhone }, { $inc: { contactViews: 1 } });
+      await User.updateOne({ phone: targetPhone }, { 
+        $inc: { contactViews: 1 },
+        $addToSet: { contactViewedBy: req.user.phone }
+      });
     }
     
     return res.status(200).json({ status: 'success' });

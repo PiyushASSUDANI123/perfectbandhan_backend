@@ -296,10 +296,11 @@ const UserSchema = new mongoose.Schema({
   fcmToken: {
     type: String,
     default: ''
-  }
-}, {
+  },
   profileVisits: { type: Number, default: 0 },
-  contactViews: { type: Number, default: 0 }
+  contactViews: { type: Number, default: 0 },
+  visitedBy: { type: [String], default: [] },
+  contactViewedBy: { type: [String], default: [] }
 }, {
   timestamps: true
 });

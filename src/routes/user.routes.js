@@ -13,6 +13,7 @@ router.get('/interests', auth, userController.getInterests);
 router.get('/activity', auth, userController.getActivity);
 router.post('/track-activity', auth, userController.trackActivity);
 router.post('/interest/accept', auth, userController.acceptInterest);
+router.post('/interest/cancel', auth, userController.cancelInterest);
 
 // --- MODERATION ---
 router.post('/block', auth, userController.blockUser);

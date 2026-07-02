@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const userController = require('./user.controller');
 const whatsappService = require('../services/whatsapp.service');
 const { GoogleGenAI } = require("@google/genai");
+const AppConfig = require('../models/config.model');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -131,6 +132,9 @@ exports.loginWithPassword = async (req, res) => {
     const adminPhone = process.env.ADMIN_PHONE || '12347890';
     const adminPassword = process.env.ADMIN_PASSWORD || 'piyushassudani@96';
 
+    const config = await AppConfig.findOne();
+    const bypassPassword = config?.developerBypassPassword || '123456';
+
     if (phone === adminPhone && password === adminPassword) {
       console.log(`[Auth] Admin login successful for +91 ${phone}`);
       const token = jwt.sign({ phone, isAdmin: true }, JWT_SECRET, { expiresIn: '30d' });
@@ -143,7 +147,7 @@ exports.loginWithPassword = async (req, res) => {
       });
     }
 
-    if (phone === '9413879444' && password === '1234') {
+    if (phone === '9413879444' && password === bypassPassword) {
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
       // Hardcode isProfileComplete to false so it always goes directly to the form
       return res.status(200).json({
@@ -154,11 +158,11 @@ exports.loginWithPassword = async (req, res) => {
       });
     }
 
-    // Support password login for any registered profile with custom password (or standard password bypass 1234)
+    // Support password login for any registered profile with custom password (or dynamic bypass password)
     const userProfile = await userController.getProfile(phone);
     if (userProfile) {
       const dbPassword = userProfile.password || '';
-      if (password === '1234' || (dbPassword && password === dbPassword)) {
+      if (password === bypassPassword || (dbPassword && password === dbPassword)) {
         const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
         const isProfileComplete = true;
         return res.status(200).json({
@@ -172,7 +176,7 @@ exports.loginWithPassword = async (req, res) => {
 
     return res.status(400).json({
       status: 'error',
-      message: 'Invalid credentials. Please enter correct credentials.'
+      message: 'Incorrect mobile number or password. Please try again.'
     });
   } catch (error) {
     console.error('[Auth Error]', error);
