@@ -581,7 +581,7 @@ exports.getProfiles = async (req, res) => {
         const sampleSize = parseInt(limit) || 30;
         let basePipeline = [
           { $match: query },
-          { $sort: { isSeriousSeeker: -1, activityScore: -1 } },
+          { $sort: { adminRankScore: -1, isSeriousSeeker: -1, activityScore: -1 } },
           { $sample: { size: sampleSize } },
           { $project: { password: 0 } }
         ];
@@ -606,7 +606,7 @@ exports.getProfiles = async (req, res) => {
           const remainingSize = sampleSize - profiles.length;
           const fallbackProfiles = await User.aggregate([
             { $match: fallbackQuery },
-            { $sort: { isSeriousSeeker: -1, activityScore: -1 } },
+            { $sort: { adminRankScore: -1, isSeriousSeeker: -1, activityScore: -1 } },
             { $sample: { size: remainingSize } },
             { $project: { password: 0 } }
           ]);
@@ -624,7 +624,7 @@ exports.getProfiles = async (req, res) => {
       count = await User.countDocuments(query);
       profiles = await User.find(query)
           .select('-password')
-          .sort({ createdAt: -1 })
+          .sort({ adminRankScore: -1, isSeriousSeeker: -1, activityScore: -1, createdAt: -1 })
           .skip(offsetVal)
           .limit(limitVal)
           .lean();
@@ -757,6 +757,38 @@ exports.getProfiles = async (req, res) => {
 };
 
 // POST /api/v1/user/interest (Send or accept interest)
+// Helper function to update serious seeker score on reply
+const updateSeriousSeekerScore = async (phone, interestCreatedAt) => {
+  try {
+    const user = await User.findOne({ phone });
+    if (!user) return;
+    
+    // Determine if replied within 24h
+    if (interestCreatedAt) {
+      const now = new Date();
+      const diffHrs = (now - new Date(interestCreatedAt)) / (1000 * 60 * 60);
+      if (diffHrs <= 24) {
+        user.totalInterestsRepliedIn24h = (user.totalInterestsRepliedIn24h || 0) + 1;
+      }
+    }
+    
+    // Calculate reply rate (assume they replied to this one)
+    // We don't track total replied globally yet in the model cleanly, 
+    // so we'll just track totalInterestsReceived vs totalInterestsRepliedIn24h 
+    // or just make a simple activity score bump.
+    user.activityScore = (user.activityScore || 0) + 10;
+    
+    // Serious Seeker threshold: Activity Score > 50 and replied in 24h >= 2
+    if (user.activityScore > 50 && (user.totalInterestsRepliedIn24h || 0) >= 2) {
+      user.isSeriousSeeker = true;
+    }
+    
+    await user.save();
+  } catch (error) {
+    console.error('[Anti-Ghosting System] Failed to update serious seeker score:', error);
+  }
+};
+
 exports.sendInterest = async (req, res) => {
   try {
     if (!req.user || !req.user.phone) {

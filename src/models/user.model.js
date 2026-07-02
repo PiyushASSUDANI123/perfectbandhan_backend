@@ -324,7 +324,8 @@ const UserSchema = new mongoose.Schema({
   totalInterestsRepliedIn24h: { type: Number, default: 0 },
   replyRate: { type: Number, default: 0 },
   activityScore: { type: Number, default: 0 },
-  isSeriousSeeker: { type: Boolean, default: false }
+  isSeriousSeeker: { type: Boolean, default: false },
+  adminRankScore: { type: Number, default: 0 }
 }, {
   timestamps: true
 });
