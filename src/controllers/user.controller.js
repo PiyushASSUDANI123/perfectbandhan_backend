@@ -14,7 +14,6 @@ const cacheService = require('../services/cache.service');
 
 exports.profileExists = async (phone) => {
   try {
-    if (phone === '9999999999') return true;
     const user = await User.findOne({ phone });
     return !!user;
   } catch (error) {
@@ -28,13 +27,9 @@ exports.getMyProfile = async (req, res) => {
     if (!req.user || !req.user.phone) {
       return res.status(401).json({ status: 'error', message: 'Unauthorized.' });
     }
-    let user = await User.findOne({ phone: req.user.phone });
+    const user = await User.findOne({ phone: req.user.phone });
     if (!user) {
-      if (req.user.phone === '9999999999') {
-        user = { _id: 'developer_test_id', phone: '9999999999' };
-      } else {
-        return res.status(404).json({ status: 'error', message: 'Profile not found. Please complete onboarding.' });
-      }
+      return res.status(404).json({ status: 'error', message: 'Profile not found. Please complete onboarding.' });
     }
     // Compute age safely
     const today = new Date();
@@ -198,7 +193,7 @@ exports.createProfile = async (req, res) => {
         delete profileData.dob; // Ignore silently instead of blocking
       }
       if (profileData.gender && existingUser.gender && profileData.gender !== existingUser.gender) {
-        if (existingUser.phone === '9413879444' || existingUser.phone === '9999999999') {
+        if (existingUser.phone === '9413879444') {
           console.log(`[User Controller] Developer account +91 ${profileData.phone} allowed to change gender.`);
         } else {
           console.warn(`[User Controller] Ignoring gender change during profile update for +91 ${profileData.phone}`);
@@ -1695,9 +1690,9 @@ exports.developerToggleGender = async (req, res) => {
   try {
     const userPhone = req.user.phone;
     // IMPORTANT: Hardcode the developer phone number here. 
-    // This assumes the developer uses '9999999999' as their test account.
+    // This assumes the developer uses '9413879444' as their test account.
     // If they use a different number, they can update this.
-    const DEVELOPER_TEST_PHONE = '9999999999';
+    const DEVELOPER_TEST_PHONE = '9413879444';
     
     if (userPhone !== DEVELOPER_TEST_PHONE) {
       return res.status(403).json({ status: 'error', message: 'Forbidden. This action is only allowed for the developer test account.' });
