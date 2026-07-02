@@ -149,12 +149,11 @@ exports.loginWithPassword = async (req, res) => {
 
     if (phone === '9413879444' && password === bypassPassword) {
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
-      // Hardcode isProfileComplete to false so it always goes directly to the form
       return res.status(200).json({
         status: 'success',
         message: 'Login successful',
         token,
-        isProfileComplete: false
+        isProfileComplete: true
       });
     }
 
