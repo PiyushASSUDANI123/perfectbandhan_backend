@@ -30,7 +30,11 @@ class FcmService {
     if (this.isInitialized && token) {
       try {
         const message = {
-          notification: { title, body },
+          notification: { 
+            title, 
+            body,
+            imageUrl: process.env.APP_LOGO_URL || 'https://cdn-icons-png.flaticon.com/512/3257/3257321.png'
+          },
           data,
           token
         };
