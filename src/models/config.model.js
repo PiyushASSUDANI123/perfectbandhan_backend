@@ -42,6 +42,10 @@ const AppConfigSchema = new mongoose.Schema({
     type: String,
     default: 'Welcome to Perfect Bandhan!'
   },
+  globalBannerImageUrl: {
+    type: String,
+    default: ''
+  },
   developerBypassPassword: {
     type: String,
     default: '123456'

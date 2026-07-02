@@ -1529,7 +1529,12 @@ exports.updateAppConfig = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Forbidden. Access restricted to admin only.' });
     }
 
-    const { latestVersion, minVersion, forceUpdate, updateMessage, downloadUrl } = req.body;
+    const { 
+      latestVersion, minVersion, forceUpdate, updateMessage, downloadUrl,
+      isMaintenanceMode, maintenanceMessage,
+      globalBannerEnabled, globalBannerMessage, globalBannerImageUrl,
+      developerBypassPassword
+    } = req.body;
 
     const updateFields = {};
     if (latestVersion !== undefined) updateFields.latestVersion = latestVersion;
@@ -1537,6 +1542,23 @@ exports.updateAppConfig = async (req, res) => {
     if (forceUpdate !== undefined) updateFields.forceUpdate = Boolean(forceUpdate);
     if (updateMessage !== undefined) updateFields.updateMessage = updateMessage;
     if (downloadUrl !== undefined) updateFields.downloadUrl = downloadUrl;
+    
+    if (isMaintenanceMode !== undefined) updateFields.isMaintenanceMode = Boolean(isMaintenanceMode);
+    if (maintenanceMessage !== undefined) updateFields.maintenanceMessage = maintenanceMessage;
+    if (globalBannerEnabled !== undefined) updateFields.globalBannerEnabled = Boolean(globalBannerEnabled);
+    if (globalBannerMessage !== undefined) updateFields.globalBannerMessage = globalBannerMessage;
+    if (developerBypassPassword !== undefined) updateFields.developerBypassPassword = developerBypassPassword;
+
+    // Handle Image Upload for Banner
+    if (globalBannerImageUrl !== undefined) {
+      if (globalBannerImageUrl.startsWith('data:image/')) {
+        // Upload to Cloudinary
+        const url = await cloudinaryService.uploadImage(globalBannerImageUrl);
+        updateFields.globalBannerImageUrl = url;
+      } else {
+        updateFields.globalBannerImageUrl = globalBannerImageUrl;
+      }
+    }
 
     // Upsert: create if not exists, update if exists
     const config = await AppConfig.findOneAndUpdate(
