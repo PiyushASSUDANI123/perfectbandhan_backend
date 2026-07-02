@@ -431,14 +431,20 @@ exports.getProfiles = async (req, res) => {
     let count;
     
     if (recommendations === 'true') {
-      // For daily picks, return a random sample to avoid showing the same profiles repeatedly
-      const sampleSize = parseInt(limit) || 30;
-      profiles = await User.aggregate([
-        { $match: query },
-        { $sample: { size: sampleSize } },
-        { $project: { password: 0 } }
-      ]);
-      count = profiles.length;
+      if (offsetVal > 0) {
+        // Daily picks is a single batch, no pagination
+        profiles = [];
+        count = 0;
+      } else {
+        // For daily picks, return a random sample to avoid showing the same profiles repeatedly
+        const sampleSize = parseInt(limit) || 30;
+        profiles = await User.aggregate([
+          { $match: query },
+          { $sample: { size: sampleSize } },
+          { $project: { password: 0 } }
+        ]);
+        count = profiles.length;
+      }
     } else {
       // Normal search with pagination
       count = await User.countDocuments(query);
