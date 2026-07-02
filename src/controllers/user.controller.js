@@ -461,6 +461,10 @@ exports.getProfiles = async (req, res) => {
       offset = '0'
     } = req.query;
 
+    // Parse Pagination Limits at top to avoid block scoping issues
+    const limitVal = parseInt(limit) || 10;
+    const offsetVal = parseInt(offset) || 0;
+
     console.log('[User Controller] getProfiles query params:', req.query);
 
     // 1. Filter: Age range (calculated relative to birth date years)
@@ -563,9 +567,6 @@ exports.getProfiles = async (req, res) => {
       }
     }
 
-    // Pagination and Limits
-    const limitVal = parseInt(limit) || 10;
-    const offsetVal = parseInt(offset) || 0;
 
     // Sorting or Randomizing
     let profiles;
