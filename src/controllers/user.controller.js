@@ -604,8 +604,8 @@ exports.sendInterest = async (req, res) => {
 
       await fcmService.sendPushNotification(
         fcmTokenNew,
-        "New Connection Request Received",
-        "An elite matrimony candidate has shown interest in your profile! Check them out.",
+        "New Interest!",
+        "Kisi ne aapki profile mein interest dikhaya hai! Check karein kaun hai woh.",
         { fromPhone: callerPhone, status: 'pending' }
       );
     }
@@ -769,11 +769,13 @@ exports.acceptInterest = async (req, res) => {
 
       const targetUserForAccept = await User.findOne({ phone: fromPhone });
       const fcmTokenAccept = targetUserForAccept && targetUserForAccept.fcmToken ? targetUserForAccept.fcmToken : null;
+      
+      const callerUser = await User.findOne({ phone: callerPhone });
 
       await fcmService.sendPushNotification(
         fcmTokenAccept,
-        "Connection Request Approved!",
-        "Jai Jhulelal! Your connection request has been accepted. WhatsApp contact details are unlocked!",
+        "Match Accepted!",
+        `Badhai ho! ${callerUser.firstName || 'Kisi'} ne aapka interest accept kar liya hai. Ab aap unka contact details dekh sakte hain.`,
         { fromPhone: callerPhone, toPhone: fromPhone, status: 'accepted' }
       );
 
@@ -993,6 +995,16 @@ exports.sendChatMessage = async (req, res) => {
       text: text
     });
     await message.save();
+
+    const targetUserObj = await User.findById(targetUserId);
+    if (targetUserObj && targetUserObj.fcmToken) {
+      await fcmService.sendPushNotification(
+        targetUserObj.fcmToken,
+        "New Message",
+        `${caller.firstName || 'Kisi'} ne aapko ek request bheji hai. Response dene ke liye tap karein.`,
+        { senderId: caller._id.toString(), type: 'chat' }
+      );
+    }
 
     return res.status(200).json({
       status: 'success',
