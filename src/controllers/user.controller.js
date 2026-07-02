@@ -422,6 +422,10 @@ exports.getProfiles = async (req, res) => {
       }
     }
 
+    // Pagination and Limits
+    const limitVal = parseInt(limit) || 10;
+    const offsetVal = parseInt(offset) || 0;
+
     // Sorting or Randomizing
     let profiles;
     let count;
@@ -437,8 +441,6 @@ exports.getProfiles = async (req, res) => {
       count = profiles.length;
     } else {
       // Normal search with pagination
-      const limitVal = parseInt(limit) || 10;
-      const offsetVal = parseInt(offset) || 0;
       count = await User.countDocuments(query);
       profiles = await User.find(query)
           .select('-password')
