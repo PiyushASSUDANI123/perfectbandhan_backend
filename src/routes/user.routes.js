@@ -5,6 +5,7 @@ const auth = require('../middleware/auth.middleware');
 
 router.post('/profile', auth, userController.createProfile);
 router.get('/profile/me', auth, userController.getMyProfile);
+router.get('/profile/:id', auth, userController.getProfileById);
 router.get('/profiles', auth, userController.getProfiles);
 
 // Double Opt-In Interest Routes

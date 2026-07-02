@@ -280,6 +280,130 @@ exports.createProfile = async (req, res) => {
   }
 };
 
+// Pseudo-Kundali Matcher (Deterministic hash based on phone numbers)
+function calculateKundaliScore(userA, userB) {
+  if (!userA.dob || !userB.dob) return null;
+  // A simple deterministic hash based on dates and phone numbers (or IDs) to ensure it's constant
+  let hashStr = (userA.phone || '') + (userB.phone || '');
+  if (userA.phone > userB.phone) {
+    hashStr = (userB.phone || '') + (userA.phone || '');
+  }
+  let hash = 0;
+  for (let i = 0; i < hashStr.length; i++) {
+    hash = ((hash << 5) - hash) + hashStr.charCodeAt(i);
+    hash |= 0;
+  }
+  // Base score 18, plus deterministic 0-18
+  const score = 18 + (Math.abs(hash) % 19);
+  return score;
+}
+
+// GET /api/v1/user/profile/:id
+exports.getProfileById = async (req, res) => {
+  try {
+    const profileId = req.params.id;
+    const p = await User.findById(profileId).select('-password').lean();
+    
+    if (!p) {
+      return res.status(404).json({ status: 'error', message: 'Profile not found' });
+    }
+    
+    const callerPhone = req.user ? req.user.phone : null;
+    let kundaliScore = null;
+    let kundaliMessage = "Birth details not provided";
+    let interestStatus = 'none';
+
+    if (callerPhone) {
+      const myUser = await User.findOne({ phone: callerPhone });
+      if (myUser && p.dob && myUser.dob) {
+        kundaliScore = calculateKundaliScore(myUser, p);
+        kundaliMessage = `${kundaliScore}/36 Gunas Matched`;
+      } else {
+        kundaliMessage = "Kundali data unavailable";
+      }
+
+      // Check interests
+      const interests = await Interest.find({
+        $or: [
+          { from_phone: callerPhone, to_phone: p.phone },
+          { from_phone: p.phone, to_phone: callerPhone }
+        ]
+      });
+
+      const isConnected = interests.some(i => i.status === 'accepted');
+      const sentInterest = interests.some(i => i.from_phone === callerPhone && i.status === 'pending');
+      const receivedInterest = interests.some(i => i.from_phone === p.phone && i.status === 'pending');
+
+      if (isConnected) interestStatus = 'accepted';
+      else if (sentInterest) interestStatus = 'pending';
+      else if (receivedInterest) interestStatus = 'incoming';
+    }
+    
+    // Compute age dynamically
+    const today = new Date();
+    let age = today.getFullYear() - p.dob.getFullYear();
+    const monthDiff = today.getMonth() - p.dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < p.dob.getDate())) {
+      age--;
+    }
+
+    const mappedProfile = {
+      id: p._id.toString(),
+      name: `${p.firstName} ${p.lastName}`,
+      age: age,
+      height: p.height,
+      caste: p.caste,
+      profession: p.profession,
+      company: p.company,
+      location: p.location,
+      education: p.education,
+      bio: p.bio,
+      compatibilityScore: p.compatibilityScore,
+      initials: p.initials,
+      fathersOccupation: p.fathersOccupation,
+      incomeBracket: p.incomeHidden ? 'Private' : p.incomeBracket,
+      professionSector: p.professionSector,
+      gradientColors: p.gradientColors,
+      photos: p.uploadedPhotos,
+      phone: p.phone,
+      whatsappNumber: p.whatsappNumber || '',
+      interestStatus: interestStatus,
+      monthlyIncome: p.incomeHidden ? 'Private' : (p.monthlyIncome || ''),
+      yearlyIncome: p.incomeHidden ? 'Private' : (p.yearlyIncome || ''),
+      district: p.district || '',
+      properAddress: p.properAddress || '',
+      jobPost: p.jobPost || '',
+      ownHouse: p.ownHouse || '',
+      housePhoto: p.housePhoto || '',
+      surname: p.surname || '',
+      nukh: p.nukh || '',
+      requirements: p.requirements || '',
+      whatWeProvide: p.whatWeProvide || '',
+      physicalDisability: p.physicalDisability || '',
+      complexion: p.complexion || '',
+      weight: p.weight || '',
+      fatherStatus: p.fatherStatus || '',
+      motherStatus: p.motherStatus || '',
+      mothersOccupation: p.mothersOccupation || '',
+      siblingsCount: p.siblingsCount || '0',
+      siblingsDetails: p.siblingsDetails || '',
+      sindhiType: p.sindhiType || '',
+      profileHidden: p.profileHidden || false,
+      incomeHidden: p.incomeHidden || false,
+      photosVisibility: p.photosVisibility || 'All Matches',
+      kundaliScore: kundaliScore,
+      kundaliMessage: kundaliMessage,
+      birthTime: p.birthTime || '',
+      birthPlace: p.birthPlace || ''
+    };
+
+    return res.status(200).json({ status: 'success', data: mappedProfile });
+  } catch (error) {
+    console.error('[User Controller getProfileById Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Failed to fetch profile' });
+  }
+};
+
 // GET /api/v1/user/profiles (Filtered, Paginated & Gender-Segregated Feed)
 exports.getProfiles = async (req, res) => {
   try {
@@ -503,6 +627,15 @@ exports.getProfiles = async (req, res) => {
         age--;
       }
 
+      let kundaliScore = null;
+      let kundaliMessage = "Birth details not provided";
+      if (callerProfile && callerProfile.dob && p.dob) {
+        kundaliScore = calculateKundaliScore(callerProfile, p);
+        kundaliMessage = `${kundaliScore}/36 Gunas Matched`;
+      } else {
+        kundaliMessage = "Kundali data unavailable";
+      }
+
       return {
         id: p._id.toString(),
         name: `${p.firstName} ${p.lastName}`,
@@ -544,7 +677,15 @@ exports.getProfiles = async (req, res) => {
         siblingsCount: p.siblingsCount || '0',
         siblingsDetails: p.siblingsDetails || '',
         sindhiType: p.sindhiType || 'Sindhi Hindu',
+        profileHidden: p.profileHidden || false,
+        incomeHidden: p.incomeHidden || false,
+        photosVisibility: p.photosVisibility || 'All Matches',
+        kundaliScore: kundaliScore,
+        kundaliMessage: kundaliMessage,
+        birthTime: p.birthTime || '',
+        birthPlace: p.birthPlace || ''
       };
+
     });
 
     console.log(`[DB] Returning ${privacyFilteredResult.length} profiles of ${count} items (offset=${offsetVal}, limit=${limitVal})`);
