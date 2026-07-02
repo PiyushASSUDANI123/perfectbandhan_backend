@@ -1368,7 +1368,7 @@ exports.adminChangePassword = async (req, res) => {
         gender: 'Male',
         firstName: 'Admin',
         lastName: 'Account',
-        email: 'admin@perfectbandhan.com',
+        email: 'admin@perfectbandhan.in',
         dob: new Date(),
         height: "5'10\"",
         city: 'Delhi',
