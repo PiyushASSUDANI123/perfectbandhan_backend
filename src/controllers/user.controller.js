@@ -198,7 +198,7 @@ exports.createProfile = async (req, res) => {
         delete profileData.dob; // Ignore silently instead of blocking
       }
       if (profileData.gender && existingUser.gender && profileData.gender !== existingUser.gender) {
-        if (existingUser.phone === '9413879444') {
+        if (existingUser.phone === '9413879444' || existingUser.phone === '9999999999') {
           console.log(`[User Controller] Developer account +91 ${profileData.phone} allowed to change gender.`);
         } else {
           console.warn(`[User Controller] Ignoring gender change during profile update for +91 ${profileData.phone}`);
