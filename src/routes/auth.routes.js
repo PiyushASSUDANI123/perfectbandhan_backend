@@ -17,6 +17,7 @@ const otpLimiter = rateLimit({
 
 router.post('/send-otp', otpLimiter, authController.sendOtp);
 router.post('/verify-otp', authController.verifyOtp);
+router.post('/google-login', authController.googleLogin);
 router.post('/login-pass', authController.loginWithPassword);
 router.post('/set-password', authController.setPassword);
 router.get('/firebase-config', authController.getFirebaseConfig);

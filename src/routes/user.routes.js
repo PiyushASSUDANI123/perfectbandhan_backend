@@ -14,7 +14,11 @@ router.get('/interests', auth, userController.getInterests);
 router.get('/activity', auth, userController.getActivity);
 router.post('/track-activity', auth, userController.trackActivity);
 router.post('/interest/accept', auth, userController.acceptInterest);
+router.post('/interest/reject', auth, userController.rejectInterest);
 router.post('/interest/cancel', auth, userController.cancelInterest);
+
+// Contextual AI Icebreakers Route
+router.get('/chat/icebreakers/:targetPhone', auth, userController.getIcebreakers);
 
 // --- MODERATION ---
 router.post('/block', auth, userController.blockUser);

@@ -315,3 +315,53 @@ exports.generateBio = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Failed to generate bio.' });
   }
 };
+exports.googleLogin = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ status: 'error', message: 'ID Token is required.' });
+    }
+
+    const { getAuth } = require('firebase-admin/auth');
+    let decodedToken;
+    try {
+      decodedToken = await getAuth().verifyIdToken(idToken);
+    } catch (err) {
+      console.error('[Google Login] Invalid token:', err);
+      return res.status(401).json({ status: 'error', message: 'Invalid Google Sign-In token.' });
+    }
+
+    const { email, uid: googleId } = decodedToken;
+    if (!email) {
+      return res.status(400).json({ status: 'error', message: 'Email not found in Google account.' });
+    }
+
+    const User = require('../models/user.model');
+    // Check if user already exists by email or googleId
+    let user = await User.findOne({ $or: [{ email }, { googleId }] });
+
+    if (user) {
+      // User exists, issue normal JWT
+      const token = jwt.sign({ phone: user.phone }, JWT_SECRET, { expiresIn: '30d' });
+      const isProfileComplete = await userController.profileExists(user.phone);
+      return res.status(200).json({
+        status: 'success',
+        message: 'Google login successful',
+        token,
+        isProfileComplete
+      });
+    } else {
+      // New user, issue special onboarding JWT
+      const token = jwt.sign({ email, googleId, authProvider: 'google' }, JWT_SECRET, { expiresIn: '1d' });
+      return res.status(200).json({
+        status: 'success',
+        message: 'Google auth successful. Proceed to onboarding.',
+        token,
+        isProfileComplete: false
+      });
+    }
+  } catch (error) {
+    console.error('[Auth Error - Google Login]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error during Google login.' });
+  }
+};

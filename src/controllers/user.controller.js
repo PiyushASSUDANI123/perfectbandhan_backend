@@ -119,7 +119,15 @@ exports.createProfile = async (req, res) => {
     const profileData = req.body;
     
     // Bind authenticated JWT phone to payload
-    if (req.user && req.user.phone) {
+    if (req.user && req.user.authProvider === 'google') {
+      // In Google Login, phone is provided by the frontend in req.body
+      if (!profileData.phone || !/^\d{10}$/.test(profileData.phone)) {
+        return res.status(400).json({ status: 'error', message: 'Valid 10-digit phone number is required.' });
+      }
+      profileData.email = req.user.email;
+      profileData.googleId = req.user.googleId;
+      profileData.authProvider = 'google';
+    } else if (req.user && req.user.phone) {
       profileData.phone = req.user.phone;
     }
 
@@ -161,6 +169,15 @@ exports.createProfile = async (req, res) => {
 
     // Check if user already exists
     let existingUser = await User.findOne({ phone: profileData.phone });
+
+    if (req.user && req.user.authProvider === 'google' && existingUser) {
+      if (existingUser.googleId !== req.user.googleId) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'This phone number is already registered to another account.'
+        });
+      }
+    }
 
     if (!existingUser) {
       const missingFields = [];
@@ -562,11 +579,44 @@ exports.getProfiles = async (req, res) => {
       } else {
         // For daily picks, return a random sample to avoid showing the same profiles repeatedly
         const sampleSize = parseInt(limit) || 30;
-        profiles = await User.aggregate([
+        let basePipeline = [
           { $match: query },
+          { $sort: { isSeriousSeeker: -1, activityScore: -1 } },
           { $sample: { size: sampleSize } },
           { $project: { password: 0 } }
-        ]);
+        ];
+        profiles = await User.aggregate(basePipeline);
+        
+        // --- NEW: FALLBACK FEED LOGIC ---
+        // If partner preferences are too strict and we got very few/no results, 
+        // fill the rest of the feed with other profiles outside preferences.
+        if (profiles.length < sampleSize) {
+          const fetchedIds = profiles.map(p => p._id);
+          
+          const fallbackQuery = { 
+            gender: oppositeGender, 
+            profileHidden: { $ne: true }, 
+            maritalStatus: { $ne: 'Married' },
+            phone: { $nin: callerProfile ? callerProfile.blockedBy : [] },
+            reportedBy: { $ne: callerPhone },
+            blockedBy: { $ne: callerPhone },
+            _id: { $nin: fetchedIds }
+          };
+          
+          const remainingSize = sampleSize - profiles.length;
+          const fallbackProfiles = await User.aggregate([
+            { $match: fallbackQuery },
+            { $sort: { isSeriousSeeker: -1, activityScore: -1 } },
+            { $sample: { size: remainingSize } },
+            { $project: { password: 0 } }
+          ]);
+          
+          // Mark fallback profiles so frontend can show "Outside Preferences" label
+          fallbackProfiles.forEach(p => p.isFallback = true);
+          
+          profiles = [...profiles, ...fallbackProfiles];
+        }
+        
         count = profiles.length;
       }
     } else {
@@ -770,6 +820,10 @@ exports.sendInterest = async (req, res) => {
       await newInterest.save();
       
       const targetUserForNewReq = await User.findOne({ phone: toPhone });
+      if (targetUserForNewReq) {
+        targetUserForNewReq.totalInterestsReceived = (targetUserForNewReq.totalInterestsReceived || 0) + 1;
+        await targetUserForNewReq.save();
+      }
       const fcmTokenNew = targetUserForNewReq && targetUserForNewReq.fcmToken ? targetUserForNewReq.fcmToken : null;
 
       await fcmService.sendPushNotification(
@@ -929,6 +983,7 @@ exports.acceptInterest = async (req, res) => {
     if (interest) {
       interest.status = 'accepted';
       await interest.save();
+      await updateSeriousSeekerScore(callerPhone, interest.createdAt);
       
       // Save reciprocal matching entry
       await Interest.findOneAndUpdate(
@@ -1877,5 +1932,111 @@ exports.developerToggleGender = async (req, res) => {
   } catch (error) {
     console.error('[Developer] Error toggling gender:', error);
     return res.status(500).json({ status: 'error', message: 'Internal server error.' });
+  }
+};
+
+
+// POST /api/v1/user/interest/reject
+exports.rejectInterest = async (req, res) => {
+  try {
+    if (!req.user || !req.user.phone) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized. Authentication token is missing.' });
+    }
+
+    const callerPhone = req.user.phone;
+    const { fromPhone } = req.body;
+
+    if (!fromPhone) {
+      return res.status(400).json({ status: 'error', message: 'Sender profile phone number is required.' });
+    }
+
+    const interest = await Interest.findOne({ from_phone: fromPhone, to_phone: callerPhone, status: 'pending' });
+    if (interest) {
+      interest.status = 'rejected';
+      await interest.save();
+      
+      await updateSeriousSeekerScore(callerPhone, interest.createdAt);
+      
+      return res.status(200).json({
+        status: 'success',
+        message: 'Interest rejected successfully.',
+        interestStatus: 'rejected'
+      });
+    }
+
+    return res.status(404).json({ status: 'error', message: 'Pending interest request not found.' });
+  } catch (error) {
+    console.error('[User Controller rejectInterest Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to reject interest.' });
+  }
+};
+
+
+// GET /api/v1/user/chat/icebreakers/:targetPhone
+exports.getIcebreakers = async (req, res) => {
+  try {
+    if (!req.user || !req.user.phone) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized.' });
+    }
+
+    const callerPhone = req.user.phone;
+    const { targetPhone } = req.params;
+
+    if (!targetPhone) {
+      return res.status(400).json({ status: 'error', message: 'targetPhone is required.' });
+    }
+
+    const callerProfile = await User.findOne({ phone: callerPhone });
+    const targetProfile = await User.findOne({ phone: targetPhone });
+
+    if (!callerProfile || !targetProfile) {
+      return res.status(404).json({ status: 'error', message: 'Profiles not found.' });
+    }
+    
+    let icebreakers = [];
+    
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const { GoogleGenAI } = require('@google/genai');
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        
+        const prompt = `You are an expert AI matchmaker helping two users start a conversation.
+        User A (Sender): ${callerProfile.gender}, ${callerProfile.age} yrs old, lives in ${callerProfile.city}. Works as ${callerProfile.profession}. Hobbies/Bio: ${callerProfile.bio}
+        User B (Receiver): ${targetProfile.gender}, ${targetProfile.age} yrs old, lives in ${targetProfile.city}. Works as ${targetProfile.profession}. Hobbies/Bio: ${targetProfile.bio}
+        
+        Find common ground and write exactly 3 natural, polite, and slightly modern conversation starters (icebreakers) that User A can send to User B.
+        Do not use emojis. Output ONLY a valid JSON array of strings. No markdown formatting, just the raw JSON array.`;
+        
+        const result = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt
+        });
+        
+        let text = result.text.trim();
+        // Remove markdown formatting if any
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        icebreakers = JSON.parse(text);
+      } catch (aiError) {
+        console.error('[Gemini AI Icebreakers Error]', aiError.message);
+      }
+    }
+    
+    // Fallback if AI fails or key not present
+    if (!icebreakers || icebreakers.length === 0) {
+       icebreakers = [
+         `Hi ${targetProfile.firstName}, I noticed we are in the same profession. How is your work going?`,
+         `Hello! I really liked your profile. Would love to connect and know more about you.`,
+         `Jai Jhulelal! I see you're from ${targetProfile.city}. I'd love to chat!`
+       ];
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      icebreakers
+    });
+  } catch (error) {
+    console.error('[User Controller getIcebreakers Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server failed to generate icebreakers.' });
   }
 };

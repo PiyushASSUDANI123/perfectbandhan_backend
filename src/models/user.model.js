@@ -11,6 +11,15 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  googleId: {
+    type: String,
+    default: null
+  },
+  authProvider: {
+    type: String,
+    enum: ['mobile', 'google'],
+    default: 'mobile'
+  },
   profileFor: {
     type: String,
     required: true
@@ -308,7 +317,14 @@ const UserSchema = new mongoose.Schema({
   profileVisits: { type: Number, default: 0 },
   contactViews: { type: Number, default: 0 },
   visitedBy: { type: [String], default: [] },
-  contactViewedBy: { type: [String], default: [] }
+  contactViewedBy: { type: [String], default: [] },
+
+  // --- Anti-Ghosting System (Serious Seeker) ---
+  totalInterestsReceived: { type: Number, default: 0 },
+  totalInterestsRepliedIn24h: { type: Number, default: 0 },
+  replyRate: { type: Number, default: 0 },
+  activityScore: { type: Number, default: 0 },
+  isSeriousSeeker: { type: Boolean, default: false }
 }, {
   timestamps: true
 });
