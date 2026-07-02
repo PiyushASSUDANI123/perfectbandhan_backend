@@ -358,10 +358,14 @@ exports.getProfileById = async (req, res) => {
     
     // Compute age dynamically
     const today = new Date();
-    let age = today.getFullYear() - p.dob.getFullYear();
-    const monthDiff = today.getMonth() - p.dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < p.dob.getDate())) {
-      age--;
+    let age = null;
+    if (p.dob) {
+      let birthDate = p.dob instanceof Date ? p.dob : new Date(p.dob);
+      age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
     }
 
     const mappedProfile = {
@@ -672,10 +676,14 @@ exports.getProfiles = async (req, res) => {
 
       // Compute age dynamically
       const today = new Date();
-      let age = today.getFullYear() - p.dob.getFullYear();
-      const monthDiff = today.getMonth() - p.dob.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < p.dob.getDate())) {
-        age--;
+      let age = null;
+      if (p.dob) {
+        let birthDate = p.dob instanceof Date ? p.dob : new Date(p.dob);
+        age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
       }
 
       let kundaliScore = null;
@@ -938,10 +946,14 @@ exports.getInterests = async (req, res) => {
     
     const requestingProfiles = users.map(p => {
       const today = new Date();
-      let age = today.getFullYear() - p.dob.getFullYear();
-      const monthDiff = today.getMonth() - p.dob.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < p.dob.getDate())) {
-        age--;
+      let age = null;
+      if (p.dob) {
+        let birthDate = p.dob instanceof Date ? p.dob : new Date(p.dob);
+        age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
       }
 
         return {
@@ -1223,6 +1235,25 @@ exports.sendChatMessage = async (req, res) => {
     if (!caller) {
       return res.status(404).json({ status: 'error', message: 'User not found.' });
     }
+    
+    const targetUserObj = await User.findById(targetUserId);
+    if (!targetUserObj) {
+      return res.status(404).json({ status: 'error', message: 'Target user not found.' });
+    }
+
+    // STRICT CHAT LOCK: Verify there is an accepted mutual interest
+    const Interest = require('../models/interest.model');
+    const mutualInterest = await Interest.findOne({
+      $or: [
+        { from_phone: callerPhone, to_phone: targetUserObj.phone },
+        { from_phone: targetUserObj.phone, to_phone: callerPhone }
+      ],
+      status: 'accepted'
+    });
+    
+    if (!mutualInterest && callerPhone !== '9413879444' && callerPhone !== '+919413879444') {
+      return res.status(403).json({ status: 'locked', message: 'Chat is locked. You must have an accepted mutual interest first.' });
+    }
 
     // Check monthly reset
     const currentMonth = new Date().getMonth();
@@ -1254,7 +1285,6 @@ exports.sendChatMessage = async (req, res) => {
     });
     await message.save();
 
-    const targetUserObj = await User.findById(targetUserId);
     if (targetUserObj && targetUserObj.fcmToken) {
       await fcmService.sendPushNotification(
         targetUserObj.fcmToken,
@@ -1457,10 +1487,14 @@ exports.getConversations = async (req, res) => {
 
     const conversations = users.map(p => {
       const today = new Date();
-      let age = today.getFullYear() - p.dob.getFullYear();
-      const monthDiff = today.getMonth() - p.dob.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < p.dob.getDate())) {
-        age--;
+      let age = null;
+      if (p.dob) {
+        let birthDate = p.dob instanceof Date ? p.dob : new Date(p.dob);
+        age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
       }
 
       return {
@@ -1747,7 +1781,11 @@ exports.getActivity = async (req, res) => {
 
     const formatProfile = (p, status) => {
       const today = new Date();
-      let age = today.getFullYear() - p.dob.getFullYear();
+      let age = null;
+      if (p.dob) {
+        let birthDate = p.dob instanceof Date ? p.dob : new Date(p.dob);
+        age = today.getFullYear() - birthDate.getFullYear();
+      }
       return {
         id: p._id.toString(),
         name: `${p.firstName} ${p.lastName}`,
