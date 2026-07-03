@@ -1260,7 +1260,7 @@ exports.sendChatMessage = async (req, res) => {
     if (caller.lastResetMonth !== currentMonth) {
       caller.chatConnections = [];
       caller.lastResetMonth = currentMonth;
-      await caller.save();
+      await caller.save({ validateBeforeSave: false });
     }
 
     // Check if targetUserId is already in chatConnections
@@ -1279,7 +1279,7 @@ exports.sendChatMessage = async (req, res) => {
         caller.chatConnections = [];
       }
       caller.chatConnections.push(targetUserId);
-      await caller.save();
+      await caller.save({ validateBeforeSave: false });
     }
 
     const message = new Message({
