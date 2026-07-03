@@ -59,3 +59,7 @@ router.get('/app-config', userController.getAppConfig);              // Public: 
 router.put('/admin/app-config', auth, userController.updateAppConfig); // Admin: set version rules
 
 module.exports = router;
+
+// WhatsApp Unlock
+router.post('/whatsapp/request', auth, userController.requestWhatsappUnlock);
+router.post('/whatsapp/approve', auth, userController.approveWhatsappUnlock);

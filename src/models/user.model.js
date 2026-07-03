@@ -234,6 +234,30 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  whatsappPrivacy: {
+    type: String,
+    enum: ['public', 'private'],
+    default: 'private'
+  },
+  whatsappRequests: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User',
+    default: []
+  },
+  whatsappApproved: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User',
+    default: []
+  },
+  chatStartsToday: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User',
+    default: []
+  },
+  chatResetDate: {
+    type: Date,
+    default: Date.now
+  },
   chatConnections: {
     type: [String],
     default: []

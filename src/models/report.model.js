@@ -23,6 +23,10 @@ const ReportSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'reviewed', 'action_taken', 'dismissed'],
     default: 'pending'
+  },
+  chatDump: {
+    type: [Object],
+    default: []
   }
 }, {
   timestamps: true

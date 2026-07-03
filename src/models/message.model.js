@@ -16,6 +16,15 @@ const MessageSchema = new mongoose.Schema({
   text: {
     type: String,
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['sent', 'delivered', 'read'],
+    default: 'sent'
+  },
+  isHidden: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

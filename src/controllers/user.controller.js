@@ -95,7 +95,13 @@ exports.getMyProfile = async (req, res) => {
         siblingsCount: user.siblingsCount || '0',
         siblingsDetails: user.siblingsDetails || '',
         sindhiType: user.sindhiType || 'Sindhi Hindu',
-        whatsappNumber: user.whatsappNumber || '',
+        whatsappNumber: (user.whatsappPrivacy === 'private' && !(user.whatsappApproved && caller && user.whatsappApproved.some(id => id.toString() === caller._id.toString()))) 
+          ? (user.whatsappNumber ? user.whatsappNumber.substring(0,5) + '*****' : '') 
+          : (user.whatsappNumber || ''),
+        whatsappPrivacy: user.whatsappPrivacy || 'private',
+        whatsappPrivacy: user.whatsappPrivacy || 'private',
+        whatsappRequests: user.whatsappRequests || [],
+        whatsappApproved: user.whatsappApproved || [],
         partnerPreferences: user.partnerPreferences || {}
       }
     });
@@ -1255,11 +1261,14 @@ exports.sendChatMessage = async (req, res) => {
       return res.status(403).json({ status: 'locked', message: 'Chat is locked. You must have an accepted mutual interest first.' });
     }
 
-    // Check monthly reset
-    const currentMonth = new Date().getMonth();
-    if (caller.lastResetMonth !== currentMonth) {
-      caller.chatConnections = [];
-      caller.lastResetMonth = currentMonth;
+    // Check daily reset (24 hrs)
+    const now = new Date();
+    const lastReset = caller.chatResetDate ? new Date(caller.chatResetDate) : new Date(0);
+    const hoursSinceReset = (now - lastReset) / (1000 * 60 * 60);
+    
+    if (hoursSinceReset >= 24) {
+      caller.chatStartsToday = [];
+      caller.chatResetDate = now;
       await caller.save({ validateBeforeSave: false });
     }
 
@@ -1268,13 +1277,17 @@ exports.sendChatMessage = async (req, res) => {
     const isAlreadyConnected = connections.includes(targetUserId);
 
     if (!isAlreadyConnected) {
-      // Check if limit of 3 exceeded
-      if (connections.length >= 3) {
-        return res.status(403).json({
-          status: 'limit_reached',
-          message: 'Monthly chat connection limit reached (Max 3 active chats per month).'
-        });
+      const startsToday = caller.chatStartsToday || [];
+      if (!startsToday.includes(targetUserId)) {
+        if (startsToday.length >= 3) {
+          return res.status(403).json({
+            status: 'limit_reached',
+            message: 'Daily chat limit reached (Max 3 new chats per day). Please wait 24 hours.'
+          });
+        }
+        caller.chatStartsToday.push(targetUserId);
       }
+      
       if (!caller.chatConnections) {
         caller.chatConnections = [];
       }
@@ -1282,10 +1295,21 @@ exports.sendChatMessage = async (req, res) => {
       await caller.save({ validateBeforeSave: false });
     }
 
+    // Regex Masking for Contact Info / UPI
+    let maskedText = text;
+    let isHidden = false;
+    const contactRegex = /(\b\d{10}\b|@ybl|@okaxis|@okhdfc|@okicici|paytm|\b\d{5,}\b)/gi;
+    if (contactRegex.test(maskedText)) {
+      maskedText = "[Contact Hidden for Safety]";
+      isHidden = true;
+    }
+
     const message = new Message({
       sender: caller._id,
       receiver: targetUserId,
-      text: text
+      text: maskedText,
+      isHidden: isHidden,
+      status: 'sent'
     });
     await message.save();
 
@@ -1866,10 +1890,21 @@ exports.blockUser = async (req, res) => {
     
     const Block = require('../models/block.model');
 
-    // Add to caller's blockedUsers
-    await User.updateOne({ phone: callerPhone }, { $addToSet: { blockedUsers: targetPhone } });
-    // Add to target's blockedBy
-    await User.updateOne({ phone: targetPhone }, { $addToSet: { blockedBy: callerPhone } });
+    const callerUser = await User.findOne({ phone: callerPhone });
+    const targetUser = await User.findOne({ phone: targetPhone });
+
+    if (callerUser && targetUser) {
+      // Add to block lists
+      await User.updateOne({ phone: callerPhone }, { $addToSet: { blockedUsers: targetPhone } });
+      await User.updateOne({ phone: targetPhone }, { $addToSet: { blockedBy: callerPhone } });
+
+      // Remove from chatConnections instantly
+      callerUser.chatConnections = callerUser.chatConnections.filter(id => id.toString() !== targetUser._id.toString());
+      targetUser.chatConnections = targetUser.chatConnections.filter(id => id.toString() !== callerUser._id.toString());
+      
+      await callerUser.save({ validateBeforeSave: false });
+      await targetUser.save({ validateBeforeSave: false });
+    }
     
     const newBlock = new Block({
       blockerPhone: callerPhone,
@@ -1933,7 +1968,7 @@ exports.getBlockedUsers = async (req, res) => {
 exports.reportUser = async (req, res) => {
   try {
     const callerPhone = req.user.phone;
-    const { targetPhone, reason, details } = req.body;
+    const { targetPhone, reason, details, chatDump } = req.body;
     
     if (!targetPhone || !reason) {
       return res.status(400).json({ status: 'error', message: 'Target phone and reason are required.' });
@@ -1944,7 +1979,8 @@ exports.reportUser = async (req, res) => {
       reporterPhone: callerPhone,
       reportedPhone: targetPhone,
       reason,
-      details
+      details,
+      chatDump: chatDump || []
     });
     await newReport.save();
     
@@ -2135,5 +2171,46 @@ exports.getIcebreakers = async (req, res) => {
   } catch (error) {
     console.error('[User Controller getIcebreakers Error]', error);
     return res.status(500).json({ status: 'error', message: 'Server failed to generate icebreakers.' });
+  }
+};
+
+exports.requestWhatsappUnlock = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const { targetUserId } = req.body;
+    
+    const caller = await User.findOne({ phone: callerPhone });
+    const target = await User.findById(targetUserId);
+    
+    if (!target) return res.status(404).json({ status: 'error', message: 'User not found' });
+    
+    if (!target.whatsappRequests.includes(caller._id)) {
+      target.whatsappRequests.push(caller._id);
+      await target.save({ validateBeforeSave: false });
+    }
+    
+    return res.status(200).json({ status: 'success', message: 'Request sent successfully' });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+exports.approveWhatsappUnlock = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    const { requesterUserId } = req.body;
+    
+    const caller = await User.findOne({ phone: callerPhone });
+    
+    caller.whatsappRequests = caller.whatsappRequests.filter(id => id.toString() !== requesterUserId);
+    if (!caller.whatsappApproved.includes(requesterUserId)) {
+      caller.whatsappApproved.push(requesterUserId);
+    }
+    
+    await caller.save({ validateBeforeSave: false });
+    
+    return res.status(200).json({ status: 'success', message: 'Request approved' });
+  } catch (error) {
+    return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
