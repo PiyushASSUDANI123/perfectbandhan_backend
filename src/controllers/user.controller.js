@@ -1539,7 +1539,7 @@ exports.getConversations = async (req, res) => {
 
       return {
         id: p._id.toString(),
-        name: `${p.firstName} ${p.lastName}`,
+        name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Unknown User',
         age: age,
         height: p.height,
         caste: p.caste,

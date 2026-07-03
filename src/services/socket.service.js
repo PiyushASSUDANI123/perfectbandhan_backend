@@ -13,6 +13,7 @@ let io;
 
 exports.init = (httpServer) => {
   io = new Server(httpServer, {
+    path: '/api/socket.io',
     cors: {
       origin: '*', // Adjust for production if necessary
       methods: ['GET', 'POST']
