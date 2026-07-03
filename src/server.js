@@ -1,7 +1,9 @@
 require('dotenv').config();
 const app = require('./app');
+const http = require('http');
 const dbService = require('./services/db.service');
 const whatsappService = require('./services/whatsapp.service');
+const socketService = require('./services/socket.service');
 
 // ─── Global Fail-safes ────────────────────────────────────────────────────────
 // Catch any un-handled synchronous exception that would otherwise silently kill Node
@@ -28,7 +30,12 @@ whatsappService.initialize();
 const cronService = require('./services/cron.service');
 cronService.start();
 
-app.listen(PORT, '0.0.0.0', () => {
+const httpServer = http.createServer(app);
+
+// Initialize Socket.io
+socketService.init(httpServer);
+
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('==================================================');
   console.log(`  PERFECT BANDHAN BACKEND RUNNING ON PORT: ${PORT}`);
   console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
