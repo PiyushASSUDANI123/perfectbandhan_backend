@@ -5,6 +5,10 @@ const Conversation = require('../models/conversation.model');
 // In-memory Map to track online users: userId -> socket.id
 const onlineUsers = new Map();
 
+// Rate limiter trackers
+const rateLimits = new Map();
+const blockList = new Map();
+
 let io;
 
 exports.init = (httpServer) => {
@@ -27,7 +31,7 @@ exports.init = (httpServer) => {
       console.warn(`Connection attempt without userId: ${socket.id}`);
     }
 
-    // Phase 3: Real-Time Messaging Logic
+    // Phase 3: Real-Time Messaging Logic & Rate Limiting
     socket.on('sendMessage', async (payload) => {
       try {
         const { senderId, receiverId, text } = payload;
@@ -35,6 +39,29 @@ exports.init = (httpServer) => {
         if (!senderId || !receiverId || !text) {
           throw new Error('Invalid payload');
         }
+
+        const now = Date.now();
+
+        // 1. Check if user is currently blocked
+        if (blockList.has(senderId) && now < blockList.get(senderId)) {
+          return socket.emit('messageError', { error: 'Rate limit exceeded. Blocked for 1 minute.' });
+        }
+
+        // 2. Track messages per second
+        const userRate = rateLimits.get(senderId) || { count: 0, startTime: now };
+        
+        if (now - userRate.startTime < 1000) { // within 1 second
+          userRate.count++;
+          if (userRate.count > 3) {
+            blockList.set(senderId, now + 60000); // Block for 1 min
+            return socket.emit('messageError', { error: 'Sending too fast! Blocked for 1 minute.' });
+          }
+        } else {
+          // Reset timer
+          userRate.count = 1;
+          userRate.startTime = now;
+        }
+        rateLimits.set(senderId, userRate);
 
         // 1. Check or create conversation
         let conversation = await Conversation.findOne({

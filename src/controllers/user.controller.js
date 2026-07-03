@@ -1197,33 +1197,45 @@ exports.getChatMessages = async (req, res) => {
   try {
     const callerPhone = req.user.phone;
     const { targetUserId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
 
     const caller = await User.findOne({ phone: callerPhone });
     if (!caller) {
       return res.status(404).json({ status: 'error', message: 'User not found.' });
     }
 
+    const Conversation = require('../models/conversation.model');
+    const conversation = await Conversation.findOne({
+      participants: { $all: [caller._id, targetUserId] }
+    });
+
+    if (!conversation) {
+      return res.status(200).json({ status: 'success', data: [] });
+    }
+
     const Message = require('../models/message.model');
-    const messages = await Message.find({
-      $or: [
-        { sender: caller._id, receiver: targetUserId },
-        { sender: targetUserId, receiver: caller._id }
-      ]
-    }).sort({ createdAt: 1 }).lean();
+    const messages = await Message.find({ conversationId: conversation._id })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .lean();
+
+    messages.reverse();
 
     return res.status(200).json({
       status: 'success',
       data: messages.map(m => ({
-        id: m._id.toString(),
-        sender: m.sender.toString(),
-        receiver: m.receiver.toString(),
+        id: m._id,
+        sender: m.senderId.toString(),
+        receiver: m.receiverId.toString(),
         text: m.text,
-        createdAt: m.createdAt
+        status: m.status,
+        timestamp: m.createdAt
       }))
     });
-  } catch (error) {
-    console.error('[User Controller getChatMessages Error]', error);
-    return res.status(500).json({ status: 'error', message: 'Server failed to retrieve chat history.' });
+  } catch (err) {
+    console.error('getChatMessages Error:', err);
+    return res.status(500).json({ status: 'error', message: 'Internal server error.' });
   }
 };
 
@@ -1599,9 +1611,11 @@ exports.getAppConfig = async (req, res) => {
     const configData = {
       latestVersion: config.latestVersion,
       minVersion: config.minVersion,
-      forceUpdate: config.forceUpdate,
-      updateMessage: config.updateMessage,
-      downloadUrl: config.downloadUrl,
+      currentVersion: "2.0.0", // Hardcoded enforcement to kill V1
+      minimumVersion: "2.0.0", // Hardcoded enforcement to kill V1
+      forceUpdate: true,
+      updateMessage: config.updateMessage || "A critical update is required. Please update the app from the Play Store to continue.",
+      downloadUrl: config.downloadUrl || "https://perfectbandhan.in",
     };
     
     cacheService.set(cacheKey, configData, 3600); // Cache for 1 hour
