@@ -1264,15 +1264,19 @@ exports.sendChatMessage = async (req, res) => {
     }
 
     // Check if targetUserId is already in chatConnections
-    const isAlreadyConnected = caller.chatConnections.includes(targetUserId);
+    const connections = caller.chatConnections || [];
+    const isAlreadyConnected = connections.includes(targetUserId);
 
     if (!isAlreadyConnected) {
       // Check if limit of 3 exceeded
-      if (caller.chatConnections.length >= 3) {
+      if (connections.length >= 3) {
         return res.status(403).json({
           status: 'limit_reached',
           message: 'Monthly chat connection limit reached (Max 3 active chats per month).'
         });
+      }
+      if (!caller.chatConnections) {
+        caller.chatConnections = [];
       }
       caller.chatConnections.push(targetUserId);
       await caller.save();
@@ -1306,7 +1310,7 @@ exports.sendChatMessage = async (req, res) => {
     });
   } catch (error) {
     console.error('[User Controller sendChatMessage Error]', error);
-    return res.status(500).json({ status: 'error', message: 'Server failed to send message.' });
+    return res.status(500).json({ status: 'error', message: error.message || 'Server failed to send message.' });
   }
 };
 
