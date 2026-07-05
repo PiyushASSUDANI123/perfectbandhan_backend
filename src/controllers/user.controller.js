@@ -1630,10 +1630,15 @@ exports.getAppConfig = async (req, res) => {
       minVersion: config.minVersion,
       currentVersion: "2.0.0", // Hardcoded enforcement to kill V1
       minimumVersion: "2.0.0", // Hardcoded enforcement to kill V1
-      forceUpdate: true,
+      forceUpdate: config.forceUpdate ?? true,
       updateMessage: config.updateMessage || "A critical update is required. Please update the app from the Play Store to continue.",
       downloadUrl: config.downloadUrl || "https://perfectbandhan.in",
       chatComingSoon: config.chatComingSoon || false,
+      isMaintenanceMode: config.isMaintenanceMode || false,
+      maintenanceMessage: config.maintenanceMessage || 'Software under maintenance, come back later.',
+      globalBannerEnabled: config.globalBannerEnabled || false,
+      globalBannerMessage: config.globalBannerMessage || 'Welcome to Perfect Bandhan!',
+      globalBannerImageUrl: config.globalBannerImageUrl || '',
     };
     
     cacheService.set(cacheKey, configData, 3600); // Cache for 1 hour
