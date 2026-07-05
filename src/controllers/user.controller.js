@@ -2280,11 +2280,18 @@ exports.getAstrologyInsight = async (req, res) => {
     const dobStr = new Date(dob).toLocaleDateString('en-GB');
 
     const prompt = `You are an expert astrologer. The user was born on ${dobStr} at ${birthTime} in ${birthPlace}. 
-Give a very short, premium, and positive astrological personality insight (max 4-5 sentences).
+Give a premium, positive astrological personality insight strictly formatted as a 5-point bulleted list in both English and Hindi.
+The 5 points must be:
+1. Personality
+2. Career
+3. Relationship
+4. Health
+5. Future
+
 Provide the response in JSON format exactly like this:
 {
-  "english": "Insight in English here...",
-  "hindi": "Insight in Hindi here..."
+  "english": "1. Personality: ...\\n2. Career: ...\\n3. Relationship: ...\\n4. Health: ...\\n5. Future: ...",
+  "hindi": "1. व्यक्तित्व: ...\\n2. करियर: ...\\n3. रिश्ते: ...\\n4. स्वास्थ्य: ...\\n5. भविष्य: ..."
 }`;
 
     const apiKey = process.env.GROQ_API_KEY;
