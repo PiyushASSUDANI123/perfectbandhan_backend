@@ -1,5 +1,6 @@
 const User = require('../models/user.model');
 const AppConfig = require('../models/config.model');
+const https = require('https');
 const authController = require('./auth.controller');
 
 // In-Memory Cache for AppConfig to protect database limits
@@ -2288,22 +2289,44 @@ Provide the response in JSON format exactly like this:
 
     const apiKey = process.env.GROQ_API_KEY;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const postData = JSON.stringify({
+      model: 'llama3-8b-8192',
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.7
+    });
+
+    const options = {
+      hostname: 'api.groq.com',
+      path: '/openai/v1/chat/completions',
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama3-8b-8192',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: "json_object" },
-        temperature: 0.7
-      })
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      }
+    };
+
+    const dataRaw = await new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => resolve({ status: res.statusCode, body }));
+      });
+      req.on('error', reject);
+      req.write(postData);
+      req.end();
     });
 
-    const data = await response.json();
-    if (!response.ok) {
+    let data;
+    try {
+      data = JSON.parse(dataRaw.body);
+    } catch (e) {
+      console.error("Groq JSON Parse Error:", e);
+      return res.status(500).json({ status: 'error', message: 'Invalid response from AI.' });
+    }
+
+    if (dataRaw.status !== 200) {
        console.error("Groq Error:", data);
        return res.status(500).json({ status: 'error', message: 'Failed to fetch AI insights.' });
     }
