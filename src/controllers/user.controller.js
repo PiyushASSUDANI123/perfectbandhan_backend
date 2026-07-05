@@ -2248,3 +2248,78 @@ exports.approveWhatsappUnlock = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+// POST /api/v1/user/astrology-insight
+exports.getAstrologyInsight = async (req, res) => {
+  try {
+    const callerPhone = req.user.phone;
+    let { dob, birthTime, birthPlace } = req.body;
+    const user = await User.findOne({ phone: callerPhone });
+    
+    if (!user) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    let updated = false;
+    if (dob) { user.dob = new Date(dob); updated = true; }
+    else if (user.dob) { dob = user.dob; }
+
+    if (birthTime) { user.birthTime = birthTime; updated = true; }
+    else { birthTime = user.birthTime; }
+
+    if (birthPlace) { user.birthPlace = birthPlace; updated = true; }
+    else { birthPlace = user.birthPlace; }
+
+    if (updated) {
+      await user.save({ validateBeforeSave: false });
+    }
+
+    if (!dob || !birthTime || !birthPlace) {
+      return res.status(400).json({ status: 'error', message: 'Incomplete birth details.' });
+    }
+
+    const dobStr = new Date(dob).toLocaleDateString('en-GB');
+
+    const prompt = `You are an expert astrologer. The user was born on ${dobStr} at ${birthTime} in ${birthPlace}. 
+Give a very short, premium, and positive astrological personality insight (max 4-5 sentences).
+Provide the response in JSON format exactly like this:
+{
+  "english": "Insight in English here...",
+  "hindi": "Insight in Hindi here..."
+}`;
+
+    const apiKey = process.env.GROQ_API_KEY;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: "json_object" },
+        temperature: 0.7
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+       console.error("Groq Error:", data);
+       return res.status(500).json({ status: 'error', message: 'Failed to fetch AI insights.' });
+    }
+
+    let result;
+    try {
+       result = JSON.parse(data.choices[0].message.content);
+    } catch(e) {
+       result = { english: data.choices[0].message.content, hindi: "Hindi version unavailable." };
+    }
+
+    return res.status(200).json({ status: 'success', data: result });
+  } catch (error) {
+    console.error('[User Controller getAstrologyInsight Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
