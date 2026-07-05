@@ -2290,7 +2290,7 @@ Provide the response in JSON format exactly like this:
     const apiKey = process.env.GROQ_API_KEY;
 
     const postData = JSON.stringify({
-      model: 'llama3-8b-8192',
+      model: 'llama-3.1-8b-instant',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: "json_object" },
       temperature: 0.7
