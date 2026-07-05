@@ -8,11 +8,11 @@ const mongoose = require('mongoose');
 const AppConfigSchema = new mongoose.Schema({
   latestVersion: {
     type: String,
-    default: '1.0.0'
+    default: '2.0.0'
   },
   minVersion: {
     type: String,
-    default: '1.0.0'   // Minimum version that can still run the app
+    default: '2.0.0'   // Minimum version that can still run the app
   },
   forceUpdate: {
     type: Boolean,
