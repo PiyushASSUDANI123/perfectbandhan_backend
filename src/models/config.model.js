@@ -49,6 +49,10 @@ const AppConfigSchema = new mongoose.Schema({
   developerBypassPassword: {
     type: String,
     default: '123456'
+  },
+  chatComingSoon: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

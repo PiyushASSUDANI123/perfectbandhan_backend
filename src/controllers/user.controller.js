@@ -1195,6 +1195,12 @@ exports.changePassword = async (req, res) => {
 // GET /api/v1/user/chat/:targetUserId
 exports.getChatMessages = async (req, res) => {
   try {
+    const AppConfig = require('../models/config.model');
+    const config = await AppConfig.findOne({});
+    if (config && config.chatComingSoon) {
+      return res.status(403).json({ status: 'error', message: 'We are launching this soon, stay tuned!' });
+    }
+
     const callerPhone = req.user.phone;
     const { targetUserId } = req.params;
     const { page = 1, limit = 20 } = req.query;
@@ -1242,6 +1248,12 @@ exports.getChatMessages = async (req, res) => {
 // POST /api/v1/user/chat/send
 exports.sendChatMessage = async (req, res) => {
   try {
+    const AppConfig = require('../models/config.model');
+    const config = await AppConfig.findOne({});
+    if (config && config.chatComingSoon) {
+      return res.status(403).json({ status: 'error', message: 'We are launching this soon, stay tuned!' });
+    }
+
     const callerPhone = req.user.phone;
     const { targetUserId, text } = req.body;
 
@@ -1475,6 +1487,12 @@ exports.adminChangePassword = async (req, res) => {
 
 exports.getConversations = async (req, res) => {
   try {
+    const AppConfig = require('../models/config.model');
+    const config = await AppConfig.findOne({});
+    if (config && config.chatComingSoon) {
+      return res.status(403).json({ status: 'error', message: 'We are launching this soon, stay tuned!' });
+    }
+
     if (!req.user || !req.user.phone) {
       return res.status(401).json({ status: 'error', message: 'Unauthorized.' });
     }
@@ -1616,6 +1634,7 @@ exports.getAppConfig = async (req, res) => {
       forceUpdate: true,
       updateMessage: config.updateMessage || "A critical update is required. Please update the app from the Play Store to continue.",
       downloadUrl: config.downloadUrl || "https://perfectbandhan.in",
+      chatComingSoon: config.chatComingSoon || false,
     };
     
     cacheService.set(cacheKey, configData, 3600); // Cache for 1 hour
@@ -1642,7 +1661,7 @@ exports.updateAppConfig = async (req, res) => {
       latestVersion, minVersion, forceUpdate, updateMessage, downloadUrl,
       isMaintenanceMode, maintenanceMessage,
       globalBannerEnabled, globalBannerMessage, globalBannerImageUrl,
-      developerBypassPassword
+      developerBypassPassword, chatComingSoon
     } = req.body;
 
     const updateFields = {};
@@ -1657,6 +1676,7 @@ exports.updateAppConfig = async (req, res) => {
     if (globalBannerEnabled !== undefined) updateFields.globalBannerEnabled = Boolean(globalBannerEnabled);
     if (globalBannerMessage !== undefined) updateFields.globalBannerMessage = globalBannerMessage;
     if (developerBypassPassword !== undefined) updateFields.developerBypassPassword = developerBypassPassword;
+    if (chatComingSoon !== undefined) updateFields.chatComingSoon = Boolean(chatComingSoon);
 
     // Handle Image Upload for Banner
     if (globalBannerImageUrl !== undefined) {
