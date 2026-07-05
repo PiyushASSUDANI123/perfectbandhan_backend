@@ -297,6 +297,10 @@ const UserSchema = new mongoose.Schema({
     default: 2
   },
   // --- Partner Preferences ---
+  astrologyInsight: {
+    type: Object,
+    default: null
+  },
   partnerPreferences: {
     minAge: { type: Number, default: 22 },
     maxAge: { type: Number, default: 26 },

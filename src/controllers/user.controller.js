@@ -99,7 +99,8 @@ exports.getMyProfile = async (req, res) => {
         whatsappPrivacy: user.whatsappPrivacy || 'private',
         whatsappRequests: user.whatsappRequests || [],
         whatsappApproved: user.whatsappApproved || [],
-        partnerPreferences: user.partnerPreferences || {}
+        partnerPreferences: user.partnerPreferences || {},
+        astrologyInsight: user.astrologyInsight || null
       }
     });
   } catch (error) {
@@ -2313,6 +2314,9 @@ Provide the response in JSON format exactly like this:
     } catch(e) {
        result = { english: data.choices[0].message.content, hindi: "Hindi version unavailable." };
     }
+
+    user.astrologyInsight = result;
+    await user.save({ validateBeforeSave: false });
 
     return res.status(200).json({ status: 'success', data: result });
   } catch (error) {
