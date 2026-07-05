@@ -8,6 +8,9 @@ router.get('/profile/me', auth, userController.getMyProfile);
 router.get('/profile/:id', auth, userController.getProfileById);
 router.get('/profiles', auth, userController.getProfiles);
 
+// Astrology Insight
+router.post('/astrology-insight', auth, userController.getAstrologyInsight);
+
 // Double Opt-In Interest Routes
 router.post('/interest', auth, userController.sendInterest);
 router.get('/interests', auth, userController.getInterests);

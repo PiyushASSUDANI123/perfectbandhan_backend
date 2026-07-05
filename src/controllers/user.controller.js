@@ -95,10 +95,7 @@ exports.getMyProfile = async (req, res) => {
         siblingsCount: user.siblingsCount || '0',
         siblingsDetails: user.siblingsDetails || '',
         sindhiType: user.sindhiType || 'Sindhi Hindu',
-        whatsappNumber: (user.whatsappPrivacy === 'private' && !(user.whatsappApproved && caller && user.whatsappApproved.some(id => id.toString() === caller._id.toString()))) 
-          ? (user.whatsappNumber ? user.whatsappNumber.substring(0,5) + '*****' : '') 
-          : (user.whatsappNumber || ''),
-        whatsappPrivacy: user.whatsappPrivacy || 'private',
+        whatsappNumber: user.whatsappNumber || '',
         whatsappPrivacy: user.whatsappPrivacy || 'private',
         whatsappRequests: user.whatsappRequests || [],
         whatsappApproved: user.whatsappApproved || [],
