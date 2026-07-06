@@ -12,10 +12,12 @@ class WhatsAppService {
     console.log('[WhatsApp Service] Initializing WhatsApp Client...');
     try {
       this.client = new Client({
+        authTimeoutMs: 60000,
         authStrategy: new LocalAuth({
           dataPath: path.join(__dirname, '../../.wwebjs_auth')
         }),
         puppeteer: {
+          protocolTimeout: 120000, // Increased timeout to prevent Page.navigate timeout
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox']
         },

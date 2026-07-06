@@ -832,7 +832,7 @@ exports.sendInterest = async (req, res) => {
       await Interest.findOneAndUpdate(
         { from_phone: callerPhone, to_phone: toPhone },
         { status: 'accepted' },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       // Fetch target user's FCM token
@@ -1039,7 +1039,7 @@ exports.acceptInterest = async (req, res) => {
       await Interest.findOneAndUpdate(
         { from_phone: callerPhone, to_phone: fromPhone },
         { status: 'accepted' },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
 
       const targetUserForAccept = await User.findOne({ phone: fromPhone });
@@ -1697,7 +1697,7 @@ exports.updateAppConfig = async (req, res) => {
     const config = await AppConfig.findOneAndUpdate(
       {},
       { $set: updateFields },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     cacheService.delete('appConfig'); // Invalidate config cache
@@ -1729,7 +1729,7 @@ exports.updateFcmToken = async (req, res) => {
     const user = await User.findOneAndUpdate(
       { phone: req.user.phone },
       { $set: { fcmToken } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (user) {
