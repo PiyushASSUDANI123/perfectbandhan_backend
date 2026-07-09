@@ -85,6 +85,27 @@ class WhatsAppService {
     console.log(`[WhatsApp Service Fallback] Message to +91 ${phone}: "${message}"`);
     return true;
   }
+
+  async sendCustomMessage(phone, message) {
+    let targetPhone = phone.trim();
+    if (targetPhone.length === 10) {
+      targetPhone = `91${targetPhone}`;
+    }
+    const formattedPhone = `${targetPhone}@c.us`;
+
+    if (this.client && this.isReady) {
+      try {
+        await this.client.sendMessage(formattedPhone, message);
+        console.log(`[WhatsApp Client] Custom message sent to +91 ${phone}`);
+        return true;
+      } catch (err) {
+        console.error(`[WhatsApp Client] Failed to send custom message to +91 ${phone}:`, err.message);
+      }
+    }
+    
+    console.log(`[WhatsApp Service Fallback] Custom Message to +91 ${phone}: "${message}"`);
+    return true;
+  }
 }
 
 module.exports = new WhatsAppService();

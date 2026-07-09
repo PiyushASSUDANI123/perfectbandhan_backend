@@ -55,14 +55,17 @@ router.post('/chat/send', auth, userController.sendChatMessage);
 // Admin Control Panel Routes
 router.post('/admin/push', auth, userController.adminBroadcastPush);
 router.put('/admin/user/:userId', auth, userController.adminEditUser);
+router.delete('/admin/user/:userId', auth, userController.adminDeleteUser);
 router.put('/admin/change-password', auth, userController.adminChangePassword);
 
 // App Version & Update Management
 router.get('/app-config', userController.getAppConfig);              // Public: client checks for updates
 router.put('/admin/app-config', auth, userController.updateAppConfig); // Admin: set version rules
 
-module.exports = router;
-
 // WhatsApp Unlock
 router.post('/whatsapp/request', auth, userController.requestWhatsappUnlock);
 router.post('/whatsapp/approve', auth, userController.approveWhatsappUnlock);
+
+router.get('/cleanup-new-users', userController.cleanupNewUsers);
+
+module.exports = router;
