@@ -458,7 +458,7 @@ exports.getProfiles = async (req, res) => {
       reportedBy: { $ne: callerPhone },
       blockedBy: { $ne: callerPhone },
       firstName: { $exists: true, $ne: '' },
-      'photos.0': { $exists: true }
+      photos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } }
     };
 
     const {
