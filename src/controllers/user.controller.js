@@ -61,6 +61,9 @@ exports.getMyProfile = async (req, res) => {
         profession: user.profession || '',
         company: user.company || '',
         incomeBracket: user.incomeBracket || '',
+        dob: user.dob || null,
+        birthTime: user.birthTime || '',
+        birthPlace: user.birthPlace || '',
         nukh: user.caste || '',
         caste: user.caste || '',
         bio: user.bio || '',
@@ -453,7 +456,9 @@ exports.getProfiles = async (req, res) => {
       maritalStatus: { $ne: 'Married' },
       phone: { $nin: callerProfile ? callerProfile.blockedBy : [] },
       reportedBy: { $ne: callerPhone },
-      blockedBy: { $ne: callerPhone }
+      blockedBy: { $ne: callerPhone },
+      firstName: { $exists: true, $ne: '' },
+      'photos.0': { $exists: true }
     };
 
     const {
