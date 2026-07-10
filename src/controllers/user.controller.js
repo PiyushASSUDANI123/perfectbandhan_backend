@@ -465,7 +465,7 @@ exports.getProfiles = async (req, res) => {
       reportedBy: { $ne: callerPhone },
       blockedBy: { $ne: callerPhone },
       firstName: { $exists: true, $ne: '' },
-      photos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } }
+      uploadedPhotos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } }
     };
 
     const {
@@ -627,7 +627,7 @@ exports.getProfiles = async (req, res) => {
             reportedBy: { $ne: callerPhone },
             blockedBy: { $ne: callerPhone },
             firstName: { $exists: true, $ne: '' },
-            photos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } },
+            uploadedPhotos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } },
             _id: { $nin: fetchedIds }
           };
           
