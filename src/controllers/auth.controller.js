@@ -93,10 +93,8 @@ exports.verifyOtp = async (req, res) => {
     const cleanOtp = String(otp).trim();
     const cleanCachedOtp = cachedOtp ? String(cachedOtp).trim() : null;
 
-    const isAdminPhone = phone === '9413879444' || phone === '9509143877';
-
-    // Direct check (allow 1234 ONLY for admins)
-    if ((isAdminPhone && cleanOtp === '1234') || (cleanCachedOtp && cleanCachedOtp === cleanOtp)) {
+    // Direct check (strict verification for production)
+    if (cleanCachedOtp && cleanCachedOtp === cleanOtp) {
       cacheService.delete(phone); // invalidate
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
       const isProfileComplete = await userController.profileExists(phone);
