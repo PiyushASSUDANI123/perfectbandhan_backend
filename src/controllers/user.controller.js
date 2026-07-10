@@ -2061,12 +2061,12 @@ exports.getBlocks = async (req, res) => {
 
 exports.adminDeleteUser = async (req, res) => {
   try {
-    const { id } = req.params;
+    const userId = req.params.userId || req.params.id;
     const User = require('../models/user.model');
     const Interest = require('../models/interest.model');
     const Message = require('../models/message.model');
     
-    const deletedUser = await User.findByIdAndDelete(id);
+    const deletedUser = await User.findByIdAndDelete(userId);
     if (!deletedUser) {
       return res.status(404).json({ status: 'error', message: 'User not found' });
     }
