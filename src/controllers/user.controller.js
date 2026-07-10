@@ -1422,6 +1422,11 @@ exports.adminEditUser = async (req, res) => {
     Object.assign(user, updateData);
     await user.save();
 
+    // Invalidate the admin cache so the change is immediately visible
+    if (typeof cacheService !== 'undefined' && cacheService.delete) {
+      cacheService.delete('adminAllUsers');
+    }
+
     return res.status(200).json({
       status: 'success',
       message: 'User profile updated successfully by Admin.'
