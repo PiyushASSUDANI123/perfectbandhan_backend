@@ -450,6 +450,9 @@ exports.getProfiles = async (req, res) => {
     const callerGender = callerProfile ? callerProfile.gender : 'Male';
     const oppositeGender = callerGender === 'Male' ? 'Female' : 'Male';
 
+    const blockedByArray = callerProfile && callerProfile.blockedBy ? callerProfile.blockedBy : [];
+    const excludedPhones = [...blockedByArray, '9413879444', '+919413879444'];
+
     const query = { 
       gender: oppositeGender, 
       profileHidden: { $ne: true }, 
@@ -458,7 +461,7 @@ exports.getProfiles = async (req, res) => {
         { isActive: { $ne: 'false' } }
       ],
       maritalStatus: { $ne: 'Married' },
-      phone: { $nin: callerProfile ? callerProfile.blockedBy : [] },
+      phone: { $nin: excludedPhones },
       reportedBy: { $ne: callerPhone },
       blockedBy: { $ne: callerPhone },
       firstName: { $exists: true, $ne: '' },
