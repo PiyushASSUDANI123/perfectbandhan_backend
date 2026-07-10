@@ -453,6 +453,7 @@ exports.getProfiles = async (req, res) => {
     const query = { 
       gender: oppositeGender, 
       profileHidden: { $ne: true }, 
+      isActive: { $ne: false },
       maritalStatus: { $ne: 'Married' },
       phone: { $nin: callerProfile ? callerProfile.blockedBy : [] },
       reportedBy: { $ne: callerPhone },
