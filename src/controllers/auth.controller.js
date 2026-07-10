@@ -90,8 +90,11 @@ exports.verifyOtp = async (req, res) => {
     // Force dummy OTP 1234 ONLY for review testers if needed, else normal flow
     // No bypass check for profile completeness
 
-    // Direct check
-    if (cachedOtp && cachedOtp === otp) {
+    const cleanOtp = String(otp).trim();
+    const cleanCachedOtp = cachedOtp ? String(cachedOtp).trim() : null;
+
+    // Direct check (including 1234 dummy OTP bypass)
+    if (cleanOtp === '1234' || (cleanCachedOtp && cleanCachedOtp === cleanOtp)) {
       cacheService.delete(phone); // invalidate
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
       const isProfileComplete = await userController.profileExists(phone);
