@@ -296,11 +296,10 @@ exports.createProfile = async (req, res) => {
         name: `${profileData.firstName} ${profileData.lastName}`
       }
     });
-  } catch (error) {
     console.error('[User Controller createProfile Error]', error);
     return res.status(500).json({
       status: 'error',
-      message: 'Server failed to save user profile.'
+      message: 'Backend Error: ' + (error.message || error.toString())
     });
   }
 };
