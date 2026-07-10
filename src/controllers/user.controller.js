@@ -1416,14 +1416,15 @@ exports.adminEditUser = async (req, res) => {
     const { userId } = req.params;
     const updateData = req.body;
 
-    const user = await User.findById(userId);
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+    
     if (!user) {
       return res.status(404).json({ status: 'error', message: 'User not found.' });
     }
-
-    // Apply updates
-    Object.assign(user, updateData);
-    await user.save();
 
     // Invalidate the admin cache so the change is immediately visible
     if (typeof cacheService !== 'undefined' && cacheService.delete) {
