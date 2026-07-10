@@ -66,6 +66,4 @@ router.put('/admin/app-config', auth, userController.updateAppConfig); // Admin:
 router.post('/whatsapp/request', auth, userController.requestWhatsappUnlock);
 router.post('/whatsapp/approve', auth, userController.approveWhatsappUnlock);
 
-router.get('/cleanup-new-users', userController.cleanupNewUsers);
-
 module.exports = router;
