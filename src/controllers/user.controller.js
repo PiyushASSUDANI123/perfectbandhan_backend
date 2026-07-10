@@ -618,10 +618,16 @@ exports.getProfiles = async (req, res) => {
           const fallbackQuery = { 
             gender: oppositeGender, 
             profileHidden: { $ne: true }, 
+            $and: [
+              { isActive: { $ne: false } },
+              { isActive: { $ne: 'false' } }
+            ],
             maritalStatus: { $ne: 'Married' },
-            phone: { $nin: callerProfile ? callerProfile.blockedBy : [] },
+            phone: { $nin: excludedPhones },
             reportedBy: { $ne: callerPhone },
             blockedBy: { $ne: callerPhone },
+            firstName: { $exists: true, $ne: '' },
+            photos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } },
             _id: { $nin: fetchedIds }
           };
           
