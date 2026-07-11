@@ -483,7 +483,9 @@ exports.getProfiles = async (req, res) => {
     } = req.query;
 
     // Parse Pagination Limits at top to avoid block scoping issues
-    const limitVal = parseInt(limit) || 10;
+    const requestedLimit = parseInt(limit) || 10;
+    // Hard cap the limit to 50 to protect database and bandwidth resources
+    const limitVal = Math.min(requestedLimit, 50);
     const offsetVal = parseInt(offset) || 0;
 
     console.log('[User Controller] getProfiles query params:', req.query);
@@ -599,7 +601,7 @@ exports.getProfiles = async (req, res) => {
         count = 0;
       } else {
         // For daily picks, return a random sample to avoid showing the same profiles repeatedly
-        const sampleSize = parseInt(limit) || 30;
+        const sampleSize = limitVal;
         let basePipeline = [
           { $match: query },
           { $sort: { adminRankScore: -1, isSeriousSeeker: -1, activityScore: -1 } },
