@@ -106,9 +106,10 @@ exports.verifyOtp = async (req, res) => {
     // Direct check
     if (cleanDbOtp === cleanOtp) {
       // clear the OTP
-      userRecord.verificationOtp = null;
-      userRecord.otpExpiresAt = null;
-      await userRecord.save();
+      await User.updateOne(
+        { _id: userRecord._id },
+        { $unset: { verificationOtp: 1, otpExpiresAt: 1 } }
+      );
       
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
       const isProfileComplete = await userController.profileExists(phone);
@@ -255,8 +256,7 @@ exports.setPassword = async (req, res) => {
       });
       await user.save();
     } else {
-      user.password = password;
-      await user.save();
+      await User.updateOne({ phone }, { $set: { password } });
     }
     console.log(`[Password Config] Saved custom password for +91 ${phone}`);
     return res.status(200).json({ status: 'success', message: 'Password set successfully.' });

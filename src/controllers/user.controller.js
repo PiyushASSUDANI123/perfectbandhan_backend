@@ -16,7 +16,7 @@ const cacheService = require('../services/cache.service');
 exports.profileExists = async (phone) => {
   try {
     const user = await User.findOne({ phone });
-    return !!user;
+    return !!(user && user.firstName);
   } catch (error) {
     console.error('[User Controller profileExists Error]', error);
     return false;
