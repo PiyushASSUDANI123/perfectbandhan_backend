@@ -465,7 +465,7 @@ exports.getProfiles = async (req, res) => {
       reportedBy: { $ne: callerPhone },
       blockedBy: { $ne: callerPhone },
       firstName: { $exists: true, $ne: '' },
-      uploadedPhotos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } }
+      'uploadedPhotos.0': { $exists: true, $type: 'string', $nin: ['', 'null'] }
     };
 
     const {
@@ -580,10 +580,9 @@ exports.getProfiles = async (req, res) => {
       if (prefs.excludeNukh && prefs.excludeNukh.trim() !== '') {
         const nukhs = prefs.excludeNukh.split(',').map(n => n.trim()).filter(n => n);
         if (nukhs.length > 0) {
-          const regexes = nukhs.map(n => `^(?!.*${n}).*`);
-          // Join the regexes to ensure none of the excluded nukhs match
-          query.caste = { $regex: regexes.join(''), $options: 'i' };
-          query.firstName = { $regex: regexes.join(''), $options: 'i' };
+          const regexes = nukhs.map(n => new RegExp(n, 'i'));
+          query.caste = { $nin: regexes };
+          query.firstName = { $nin: regexes };
         }
       }
     }
@@ -604,6 +603,7 @@ exports.getProfiles = async (req, res) => {
         let basePipeline = [
           { $match: query },
           { $sort: { adminRankScore: -1, isSeriousSeeker: -1, activityScore: -1 } },
+          { $limit: 150 }, // Optimization: Only sample from the top 150 active profiles
           { $sample: { size: sampleSize } },
           { $project: { password: 0 } }
         ];
@@ -627,7 +627,7 @@ exports.getProfiles = async (req, res) => {
             reportedBy: { $ne: callerPhone },
             blockedBy: { $ne: callerPhone },
             firstName: { $exists: true, $ne: '' },
-            uploadedPhotos: { $elemMatch: { $ne: 'null', $type: 'string', $regex: /^(http|data:image)/ } },
+            'uploadedPhotos.0': { $exists: true, $type: 'string', $nin: ['', 'null'] },
             _id: { $nin: fetchedIds }
           };
           
@@ -635,6 +635,7 @@ exports.getProfiles = async (req, res) => {
           const fallbackProfiles = await User.aggregate([
             { $match: fallbackQuery },
             { $sort: { adminRankScore: -1, isSeriousSeeker: -1, activityScore: -1 } },
+            { $limit: 150 }, // Optimization
             { $sample: { size: remainingSize } },
             { $project: { password: 0 } }
           ]);
