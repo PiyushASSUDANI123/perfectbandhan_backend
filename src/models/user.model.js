@@ -338,6 +338,12 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  verificationOtp: {
+    type: String
+  },
+  otpExpiresAt: {
+    type: Date
+  },
   fcmToken: {
     type: String,
     default: ''

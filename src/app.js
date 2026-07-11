@@ -18,10 +18,10 @@ app.use((req, res, next) => {
     if (!res.headersSent) {
       res.status(504).json({
         status: 'error',
-        message: 'Gateway Timeout: Request took longer than 10 seconds.'
+        message: 'Gateway Timeout: Request took longer than 30 seconds.'
       });
     }
-  }, 10000);
+  }, 30000);
   // Clear the timer when response finishes
   res.on('finish', () => clearTimeout(timeout));
   res.on('close', () => clearTimeout(timeout));
@@ -60,8 +60,8 @@ const globalRateLimiter = rateLimit({
 app.use(helmet()); // Secure HTTP headers
 app.use(cors());
 app.use(compression());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/api', globalRateLimiter); // Apply global limit to API routes
 
 // Root simple health check

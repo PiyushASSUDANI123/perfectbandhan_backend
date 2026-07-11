@@ -1,6 +1,7 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const path = require('path');
+const { execSync } = require('child_process');
 
 class WhatsAppService {
   constructor() {
@@ -11,9 +12,18 @@ class WhatsAppService {
   initialize() {
     console.log('[WhatsApp Service] Initializing WhatsApp Client...');
     try {
+      // Aggressive Zombie Chrome Cleanup
+      try {
+        console.log('[WhatsApp Service] Cleaning up zombie chromium processes...');
+        execSync('pkill -f "chromium|puppeteer"', { stdio: 'ignore' });
+      } catch (e) {
+        // Ignore if no processes found
+      }
+
       this.client = new Client({
         authTimeoutMs: 60000,
         authStrategy: new LocalAuth({
+          clientId: 'perfect-bandhan-core',
           dataPath: path.join(__dirname, '../../.wwebjs_auth')
         }),
         puppeteer: {
