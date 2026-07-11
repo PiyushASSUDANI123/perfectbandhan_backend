@@ -395,7 +395,7 @@ exports.checkPhone = async (req, res) => {
     }
     const User = require('../models/user.model');
     const user = await User.findOne({ phone });
-    if (user) {
+    if (user && user.firstName) {
       return res.status(200).json({ status: 'success', isRegistered: true, message: 'Phone number is already registered.' });
     }
     return res.status(200).json({ status: 'success', isRegistered: false });
