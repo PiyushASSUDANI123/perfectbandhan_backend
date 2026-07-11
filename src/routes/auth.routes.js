@@ -20,6 +20,7 @@ router.post('/verify-otp', authController.verifyOtp);
 router.post('/google-login', authController.googleLogin);
 router.post('/login-pass', authController.loginWithPassword);
 router.post('/set-password', authController.setPassword);
+router.post('/check-phone', authController.checkPhone);
 router.get('/firebase-config', authController.getFirebaseConfig);
 router.post('/generate-bio', authController.generateBio);
 

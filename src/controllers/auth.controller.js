@@ -386,3 +386,21 @@ exports.googleLogin = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Server error during Google login.' });
   }
 };
+
+exports.checkPhone = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ status: 'error', message: 'Phone number is required.' });
+    }
+    const User = require('../models/user.model');
+    const user = await User.findOne({ phone });
+    if (user) {
+      return res.status(200).json({ status: 'success', isRegistered: true, message: 'Phone number is already registered.' });
+    }
+    return res.status(200).json({ status: 'success', isRegistered: false });
+  } catch (error) {
+    console.error('[Check Phone Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error checking phone number.' });
+  }
+};
