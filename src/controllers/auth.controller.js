@@ -340,16 +340,19 @@ exports.googleLogin = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'ID Token is required.' });
     }
 
-    const { getAuth } = require('firebase-admin/auth');
     let decodedToken;
     try {
-      decodedToken = await getAuth().verifyIdToken(idToken);
+      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+      if (!response.ok) {
+        throw new Error('Invalid Google Sign-In token response');
+      }
+      decodedToken = await response.json();
     } catch (err) {
       console.error('[Google Login] Invalid token:', err);
       return res.status(401).json({ status: 'error', message: 'Invalid Google Sign-In token.' });
     }
 
-    const { email, uid: googleId } = decodedToken;
+    const { email, sub: googleId } = decodedToken;
     if (!email) {
       return res.status(400).json({ status: 'error', message: 'Email not found in Google account.' });
     }
