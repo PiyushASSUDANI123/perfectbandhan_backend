@@ -1,5 +1,6 @@
 const cacheService = require('../services/cache.service');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const userController = require('./user.controller');
 const whatsappService = require('../services/whatsapp.service');
 const { GoogleGenAI } = require("@google/genai");
@@ -155,40 +156,45 @@ exports.loginWithPassword = async (req, res) => {
 
     console.log(`[Auth] Validating password credentials for +91 ${phone}`);
 
-    const adminPhone = process.env.ADMIN_PHONE || '12347890';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'piyushassudani@96';
+    const adminPhone = process.env.ADMIN_PHONE;
+    const adminPassword = process.env.ADMIN_PASSWORD;
 
-    const config = await AppConfig.findOne();
-    const bypassPassword = config?.developerBypassPassword || '300609';
-
-    if (phone === adminPhone && password === adminPassword) {
-      console.log(`[Auth] Admin login successful for +91 ${phone}`);
-      const token = jwt.sign({ phone, isAdmin: true }, JWT_SECRET, { expiresIn: '30d' });
-      return res.status(200).json({
-        status: 'success',
-        message: 'Admin login successful',
-        token,
-        isAdmin: true,
-        isProfileComplete: true
-      });
+    if (adminPhone && adminPassword && phone === adminPhone) {
+      // Direct comparison if no hash provided in ENV, but recommended to put hash in ENV
+      if (password === adminPassword) {
+        console.log(`[Auth] Admin login successful for +91 ${phone}`);
+        const token = jwt.sign({ phone, isAdmin: true }, JWT_SECRET, { expiresIn: '30d' });
+        return res.status(200).json({
+          status: 'success',
+          message: 'Admin login successful',
+          token,
+          isAdmin: true,
+          isProfileComplete: true
+        });
+      }
     }
 
-    if (phone === '9413879444' && password === bypassPassword) {
-      const token = jwt.sign({ phone, isAdmin: true }, JWT_SECRET, { expiresIn: '30d' });
-      return res.status(200).json({
-        status: 'success',
-        message: 'Login successful',
-        token,
-        isAdmin: true,
-        isProfileComplete: true
-      });
-    }
-
-    // Support password login for any registered profile with custom password (or dynamic bypass password)
+    // Support password login for any registered profile
     const userProfile = await userController.getProfile(phone);
     if (userProfile) {
       const dbPassword = userProfile.password || '';
-      if (dbPassword && password === dbPassword) {
+      if (dbPassword) {
+        let isMatch = false;
+        // Check if it is a bcrypt hash
+        if (dbPassword.startsWith('$2a$') || dbPassword.startsWith('$2b$')) {
+          isMatch = await bcrypt.compare(password, dbPassword);
+        } else {
+          // Legacy plaintext fallback
+          isMatch = (password === dbPassword);
+          if (isMatch) {
+            // Auto-upgrade to secure hash silently
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+            await User.updateOne({ phone }, { $set: { password: hashedPassword } });
+          }
+        }
+
+        if (isMatch) {
         const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
         const isProfileComplete = await userController.profileExists(phone);
         return res.status(200).json({
@@ -198,8 +204,8 @@ exports.loginWithPassword = async (req, res) => {
           isProfileComplete
         });
       }
+      }
     }
-
     return res.status(400).json({
       status: 'error',
       message: 'Incorrect mobile number or password. Please try again.'
@@ -240,12 +246,17 @@ exports.setPassword = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone and Password are required.' });
     }
     const User = require('../models/user.model');
+    
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     let user = await User.findOne({ phone });
     if (!user) {
       // Create a skeleton user so password is set
       user = new User({
         phone,
-        password,
+        password: hashedPassword,
         profileFor: 'Self',
         gender: 'Male',
         firstName: 'New',
@@ -264,7 +275,7 @@ exports.setPassword = async (req, res) => {
       });
       await user.save();
     } else {
-      await User.updateOne({ phone }, { $set: { password } });
+      await User.updateOne({ phone }, { $set: { password: hashedPassword } });
     }
     console.log(`[Password Config] Saved custom password for +91 ${phone}`);
     return res.status(200).json({ status: 'success', message: 'Password set successfully.' });

@@ -105,7 +105,7 @@ exports.init = (httpServer) => {
         }
         
         // Acknowledge back to sender
-        socket.emit('messageSent', newMessage);
+        socket.emit('messageSent', { ...newMessage.toJSON(), localId: payload.id });
 
       } catch (error) {
         console.error('Socket sendMessage Error:', error);
