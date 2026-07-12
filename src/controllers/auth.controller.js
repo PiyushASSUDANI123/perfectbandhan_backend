@@ -395,7 +395,8 @@ exports.checkPhone = async (req, res) => {
     }
     const User = require('../models/user.model');
     const user = await User.findOne({ phone });
-    if (user && user.firstName) {
+    // If the user exists and has a real first name (not a skeleton profile from setPassword)
+    if (user && user.firstName && user.email !== 'temp@sindhishadi.com') {
       return res.status(200).json({ status: 'success', isRegistered: true, message: 'Phone number is already registered.' });
     }
     return res.status(200).json({ status: 'success', isRegistered: false });
