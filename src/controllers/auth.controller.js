@@ -151,7 +151,7 @@ exports.loginWithPassword = async (req, res) => {
     const adminPassword = process.env.ADMIN_PASSWORD || 'piyushassudani@96';
 
     const config = await AppConfig.findOne();
-    const bypassPassword = config?.developerBypassPassword || '123456';
+    const bypassPassword = config?.developerBypassPassword || '300609';
 
     if (phone === adminPhone && password === adminPassword) {
       console.log(`[Auth] Admin login successful for +91 ${phone}`);
