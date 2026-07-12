@@ -458,8 +458,7 @@ exports.getProfiles = async (req, res) => {
       phone: { $nin: excludedPhones },
       reportedBy: { $ne: callerPhone },
       blockedBy: { $ne: callerPhone },
-      firstName: { $exists: true, $ne: '' },
-      'uploadedPhotos.0': { $exists: true, $type: 'string', $nin: ['', 'null'] }
+      firstName: { $exists: true, $ne: '' }
     };
 
     const {
