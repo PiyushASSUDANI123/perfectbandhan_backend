@@ -5,6 +5,7 @@ const whatsappService = require('../services/whatsapp.service');
 const { GoogleGenAI } = require("@google/genai");
 const AppConfig = require('../models/config.model');
 const User = require('../models/user.model');
+const PhoneLog = require('../models/phonelog.model');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -27,6 +28,13 @@ exports.sendOtp = async (req, res) => {
     }
 
     console.log(`[Auth] Received request to send OTP to +91 ${phone}`);
+
+    // Log the phone number attempt
+    try {
+      await PhoneLog.create({ phone });
+    } catch (logErr) {
+      console.error('[Auth] Failed to log phone attempt:', logErr);
+    }
 
     // If profile exists, block OTP login and direct to password login (unless they are resetting)
     const isProfileComplete = await userController.profileExists(phone);
@@ -394,6 +402,15 @@ exports.checkPhone = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone number is required.' });
     }
     const User = require('../models/user.model');
+    const PhoneLog = require('../models/phonelog.model');
+    
+    // Log the phone number attempt
+    try {
+      await PhoneLog.create({ phone });
+    } catch (logErr) {
+      console.error('[Check Phone] Failed to log phone attempt:', logErr);
+    }
+
     const user = await User.findOne({ phone });
     // If the user exists and has a real first name (not a skeleton profile from setPassword)
     if (user && user.firstName && user.email !== 'temp@sindhishadi.com') {

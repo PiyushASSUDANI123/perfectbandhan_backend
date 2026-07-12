@@ -57,6 +57,7 @@ router.post('/admin/push', auth, userController.adminBroadcastPush);
 router.put('/admin/user/:userId', auth, userController.adminEditUser);
 router.delete('/admin/user/:userId', auth, userController.adminDeleteUser);
 router.put('/admin/change-password', auth, userController.adminChangePassword);
+router.get('/admin/phone-logs', auth, userController.getPhoneLogs);
 
 // App Version & Update Management
 router.get('/app-config', userController.getAppConfig);              // Public: client checks for updates

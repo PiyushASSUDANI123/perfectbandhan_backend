@@ -2380,3 +2380,19 @@ Provide the response in JSON format exactly like this:
     return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+exports.getPhoneLogs = async (req, res) => {
+  try {
+    const adminPhones = (process.env.ADMIN_PHONES || '9413879444').split(',');
+    if (!adminPhones.includes(req.user.phone)) {
+      return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    }
+    
+    const PhoneLog = require('../models/phonelog.model');
+    const logs = await PhoneLog.find().sort({ createdAt: -1 }).limit(500);
+    return res.status(200).json({ status: 'success', data: logs });
+  } catch (error) {
+    console.error('[Admin] Get Phone Logs Error:', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
