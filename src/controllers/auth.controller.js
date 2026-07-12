@@ -182,7 +182,7 @@ exports.loginWithPassword = async (req, res) => {
       const dbPassword = userProfile.password || '';
       if (password === bypassPassword || (dbPassword && password === dbPassword)) {
         const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
-        const isProfileComplete = true;
+        const isProfileComplete = await userController.profileExists(phone);
         return res.status(200).json({
           status: 'success',
           message: 'Login successful',

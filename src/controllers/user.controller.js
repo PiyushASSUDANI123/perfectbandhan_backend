@@ -16,7 +16,8 @@ const cacheService = require('../services/cache.service');
 exports.profileExists = async (phone) => {
   try {
     const user = await User.findOne({ phone });
-    return !!(user && user.firstName);
+    // Check if firstName exists AND is not the placeholder set by setPassword
+    return !!(user && user.firstName && user.email !== 'temp@sindhishadi.com');
   } catch (error) {
     console.error('[User Controller profileExists Error]', error);
     return false;
