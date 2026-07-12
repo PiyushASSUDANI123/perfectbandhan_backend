@@ -197,11 +197,14 @@ exports.createProfile = async (req, res) => {
       }
 
       if (missingFields.length > 0) {
-        console.warn(`[User Controller] Validation warnings (ignored to allow user in). Missing fields: ${missingFields.join(', ')}`);
+        return res.status(400).json({
+          status: 'error',
+          message: `Validation failed. Missing required fields: ${missingFields.join(', ')}`
+        });
       }
 
       if (!Array.isArray(profileData.uploadedPhotos) || profileData.uploadedPhotos.length === 0 || !profileData.uploadedPhotos[0]) {
-        console.warn('[User Controller] No photos uploaded. Allowing user in anyway.');
+        return res.status(400).json({ status: 'error', message: 'At least one photo is required.' });
       }
     } else {
       // Immutable field guard: block gender or dob changes for existing users
