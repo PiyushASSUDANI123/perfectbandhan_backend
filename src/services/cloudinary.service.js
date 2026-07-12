@@ -28,9 +28,9 @@ class CloudinaryService {
       return `https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg`;
     }
 
+    let uploadString = base64Str;
     try {
       // Compress the image before uploading if it is a valid base64 string
-      let uploadString = base64Str;
       const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       
       if (matches && matches.length === 3) {
@@ -52,8 +52,14 @@ class CloudinaryService {
       });
       return uploadResponse.secure_url;
     } catch (err) {
-      console.error('[Cloudinary Upload Error]', err.message);
-      throw new Error('Failed to upload image to Cloudinary: ' + err.message);
+      console.error('[Cloudinary Upload Error]', err);
+      // Instead of throwing and failing the profile submission, we return the base64 string
+      // so it gets saved to MongoDB directly as a fallback.
+      if (typeof uploadString === 'string' && uploadString.startsWith('data:image/')) {
+        console.warn('[Cloudinary Service] Falling back to storing Base64 in MongoDB.');
+        return uploadString;
+      }
+      throw new Error('Failed to upload image to Cloudinary: ' + (err.message || JSON.stringify(err) || err));
     }
   }
 }
