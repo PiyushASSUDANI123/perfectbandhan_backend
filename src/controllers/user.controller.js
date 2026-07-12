@@ -2401,3 +2401,47 @@ exports.getPhoneLogs = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+const OnboardingProgress = require('../models/onboardingprogress.model');
+
+exports.updateOnboardingProgress = async (req, res) => {
+  try {
+    const { step, stepName, data } = req.body;
+    let phone = req.user.phone;
+    
+    // In case of google login, phone is inside the data payload
+    if (!phone && req.user.authProvider === 'google' && data && data.phone) {
+        phone = data.phone;
+    }
+    
+    if (!phone) {
+        return res.status(400).json({ status: 'error', message: 'Phone number is required.' });
+    }
+
+    const progress = await OnboardingProgress.findOneAndUpdate(
+      { phone },
+      { 
+        currentStep: step,
+        stepName: stepName || '',
+        data: data || {},
+        lastActiveAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ status: 'success', data: progress });
+  } catch (error) {
+    console.error('[User Controller updateOnboardingProgress Error]', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+};
+
+exports.getOnboardingProgress = async (req, res) => {
+  try {
+    const records = await OnboardingProgress.find().sort({ lastActiveAt: -1 }).limit(100);
+    res.json({ status: 'success', data: records });
+  } catch (error) {
+    console.error('[User Controller getOnboardingProgress Error]', error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+};

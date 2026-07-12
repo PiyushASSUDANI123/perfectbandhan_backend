@@ -63,6 +63,10 @@ router.get('/admin/phone-logs', auth, userController.getPhoneLogs);
 router.get('/app-config', userController.getAppConfig);              // Public: client checks for updates
 router.put('/admin/app-config', auth, userController.updateAppConfig); // Admin: set version rules
 
+// Onboarding Progress
+router.post('/onboarding-progress', auth, userController.updateOnboardingProgress);
+router.get('/admin/onboarding-progress', auth, userController.getOnboardingProgress);
+
 // WhatsApp Unlock
 router.post('/whatsapp/request', auth, userController.requestWhatsappUnlock);
 router.post('/whatsapp/approve', auth, userController.approveWhatsappUnlock);
