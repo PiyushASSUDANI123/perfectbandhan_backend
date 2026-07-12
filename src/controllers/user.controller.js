@@ -1,4 +1,5 @@
 const User = require('../models/user.model');
+const generateUniquePbId = require('../utils/generatePbId');
 const AppConfig = require('../models/config.model');
 const https = require('https');
 const authController = require('./auth.controller');
@@ -271,6 +272,7 @@ exports.createProfile = async (req, res) => {
         await user.save();
       }
     } else {
+      profileData.pbId = await generateUniquePbId();
       user = new User(profileData);
       await user.save();
     }
@@ -2080,6 +2082,7 @@ exports.adminDeleteUser = async (req, res) => {
   try {
     const userId = req.params.userId || req.params.id;
     const User = require('../models/user.model');
+const generateUniquePbId = require('../utils/generatePbId');
     const Interest = require('../models/interest.model');
     const Message = require('../models/message.model');
     
@@ -2114,6 +2117,7 @@ exports.developerToggleGender = async (req, res) => {
     }
 
     const User = require('../models/user.model');
+const generateUniquePbId = require('../utils/generatePbId');
     const user = await User.findOne({ phone: userPhone });
     if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
 

@@ -6,6 +6,7 @@ const whatsappService = require('../services/whatsapp.service');
 const { GoogleGenAI } = require("@google/genai");
 const AppConfig = require('../models/config.model');
 const User = require('../models/user.model');
+const generateUniquePbId = require('../utils/generatePbId');
 const PhoneLog = require('../models/phonelog.model');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -246,6 +247,7 @@ exports.setPassword = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone and Password are required.' });
     }
     const User = require('../models/user.model');
+const generateUniquePbId = require('../utils/generatePbId');
     
     // Hash the password
     const salt = await bcrypt.genSalt(10);
@@ -256,6 +258,7 @@ exports.setPassword = async (req, res) => {
       // Create a skeleton user so password is set
       user = new User({
         phone,
+        pbId: await generateUniquePbId(),
         password: hashedPassword,
         profileFor: 'Self',
         gender: 'Male',
@@ -377,6 +380,7 @@ exports.googleLogin = async (req, res) => {
     }
 
     const User = require('../models/user.model');
+const generateUniquePbId = require('../utils/generatePbId');
     // Check if user already exists by email or googleId
     let user = await User.findOne({ $or: [{ email }, { googleId }] });
 
@@ -413,6 +417,7 @@ exports.checkPhone = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone number is required.' });
     }
     const User = require('../models/user.model');
+const generateUniquePbId = require('../utils/generatePbId');
     const PhoneLog = require('../models/phonelog.model');
     
     // Log the phone number attempt

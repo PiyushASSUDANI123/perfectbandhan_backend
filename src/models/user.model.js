@@ -7,6 +7,12 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
+  pbId: {
+    type: String,
+    unique: true,
+    index: true,
+    default: ''
+  },
   password: {
     type: String,
     default: ''
