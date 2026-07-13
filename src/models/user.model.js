@@ -55,8 +55,7 @@ const UserSchema = new mongoose.Schema({
     default: 'Sindhi Hindu'
   },
   dob: {
-    type: Date,
-    required: true
+    type: Date
   },
   birthTime: {
     type: String,
@@ -68,28 +67,28 @@ const UserSchema = new mongoose.Schema({
   },
   height: {
     type: String,
-    required: true
+    default: ''
   },
   city: {
     type: String,
-    required: true,
-    index: true
+    index: true,
+    default: ''
   },
   state: {
     type: String,
-    required: true
+    default: ''
   },
   maritalStatus: {
     type: String,
-    required: true
+    default: 'Never Married'
   },
   education: {
     type: String,
-    required: true
+    default: ''
   },
   profession: {
     type: String,
-    required: true
+    default: ''
   },
   professionSector: {
     type: String,
@@ -101,7 +100,7 @@ const UserSchema = new mongoose.Schema({
   },
   location: {
     type: String,
-    required: true
+    default: ''
   },
   bio: {
     type: String,
@@ -173,7 +172,7 @@ const UserSchema = new mongoose.Schema({
   },
   incomeBracket: {
     type: String,
-    required: true
+    default: 'Not Specified'
   },
   gradientColors: {
     type: [String],
@@ -181,7 +180,7 @@ const UserSchema = new mongoose.Schema({
   },
   uploadedPhotos: {
     type: [String],
-    required: true
+    default: []
   },
   // --- New Advanced Fields ---
   monthlyIncome: {
@@ -365,7 +364,8 @@ const UserSchema = new mongoose.Schema({
   replyRate: { type: Number, default: 0 },
   activityScore: { type: Number, default: 0 },
   isSeriousSeeker: { type: Boolean, default: false },
-  adminRankScore: { type: Number, default: 0 }
+  adminRankScore: { type: Number, default: 0 },
+  isDeveloper: { type: Boolean, default: false }
 }, {
   timestamps: true
 });

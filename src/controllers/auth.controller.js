@@ -209,15 +209,17 @@ exports.loginWithPassword = async (req, res) => {
         }
 
         if (isMatch) {
-        const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
-        const isProfileComplete = await userController.profileExists(phone);
-        return res.status(200).json({
-          status: 'success',
-          message: 'Login successful',
-          token,
-          isProfileComplete
-        });
-      }
+          const isAdminUser = userProfile.isDeveloper || userProfile.isAdmin || false;
+          const token = jwt.sign({ phone, isAdmin: isAdminUser }, JWT_SECRET, { expiresIn: '30d' });
+          const isProfileComplete = await userController.profileExists(phone);
+          return res.status(200).json({
+            status: 'success',
+            message: 'Login successful',
+            token,
+            isAdmin: isAdminUser,
+            isProfileComplete
+          });
+        }
       }
     }
     return res.status(400).json({

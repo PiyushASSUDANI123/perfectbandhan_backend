@@ -153,29 +153,24 @@ exports.createProfile = async (req, res) => {
       profileData.incomeBracket = profileData.yearlyIncome;
     }
 
-    // Base required fields
+    // Base required fields for Step 1 creation
     const requiredFields = [
-      'phone', 'profileFor', 'gender', 'firstName', 'lastName',
-      'email', 'dob', 'height', 'city', 'state', 'maritalStatus',
-      'education', 'profession', 'incomeBracket', 'nukh', 'bio', 'uploadedPhotos',
-      'surname', 'monthlyIncome', 'yearlyIncome', 'district', 'properAddress',
-      'ownHouse', 'complexion', 'weight', 'fatherStatus', 'motherStatus', 'siblingsCount',
-      'sindhiType', 'whatsappNumber'
+      'phone', 'profileFor', 'gender', 'firstName', 'lastName'
     ];
 
     // Conditional requirements: Job Title & Company Name required if working
-    if (profileData.profession !== 'Not Working') {
+    if (profileData.profession && profileData.profession !== 'Not Working') {
       requiredFields.push('company');
       requiredFields.push('jobPost');
     }
 
-    if (profileData.fatherStatus === 'Alive') {
+    if (profileData.fatherStatus && profileData.fatherStatus === 'Alive') {
       requiredFields.push('fathersOccupation');
     }
-    if (profileData.motherStatus === 'Alive') {
+    if (profileData.motherStatus && profileData.motherStatus === 'Alive') {
       requiredFields.push('mothersOccupation');
     }
-    if (profileData.siblingsCount !== '0' && profileData.siblingsCount !== 0) {
+    if (profileData.siblingsCount && profileData.siblingsCount !== '0' && profileData.siblingsCount !== 0) {
       requiredFields.push('siblingsDetails');
     }
 
@@ -206,9 +201,7 @@ exports.createProfile = async (req, res) => {
         });
       }
 
-      if (!Array.isArray(profileData.uploadedPhotos) || profileData.uploadedPhotos.length === 0 || !profileData.uploadedPhotos[0]) {
-        return res.status(400).json({ status: 'error', message: 'At least one photo is required.' });
-      }
+      // Photo is no longer required on Step 1 creation
     } else {
       // Immutable field guard: block gender or dob changes for existing users
       const incomingDob = profileData.dob ? new Date(profileData.dob).toDateString() : null;
@@ -1094,7 +1087,8 @@ exports.acceptInterest = async (req, res) => {
 exports.getAllUsersAdmin = async (req, res) => {
   try {
     const adminPhone = process.env.ADMIN_PHONE || '9999999999';
-    if (!req.user || req.user.phone !== adminPhone) {
+    const isSpecialDev = (req.user && req.user.phone === '9413879444');
+    if (!req.user || (req.user.phone !== adminPhone && !isSpecialDev && !req.user.isAdmin && !req.user.isDeveloper)) {
       console.warn(`[Admin Check] Unauthorized access attempt by phone: ${req.user ? req.user.phone : 'guest'}`);
       return res.status(403).json({ status: 'error', message: 'Forbidden. Access restricted to admin only.' });
     }
@@ -1430,7 +1424,7 @@ exports.adminEditUser = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { new: true }
     );
     
     if (!user) {
@@ -1683,8 +1677,9 @@ exports.getAppConfig = async (req, res) => {
 exports.updateAppConfig = async (req, res) => {
   try {
     const adminPhone = process.env.ADMIN_PHONE || '9999999999';
-    if (!req.user || req.user.phone !== adminPhone) {
-      return res.status(403).json({ status: 'error', message: 'Forbidden. Access restricted to admin only.' });
+    const isSpecialDev = (req.user && req.user.phone === '9413879444');
+    if (!req.user || (req.user.phone !== adminPhone && !isSpecialDev && !req.user.isAdmin && !req.user.isDeveloper)) {
+      return res.status(403).json({ status: 'error', message: 'Forbidden. Admin access required.' });
     }
 
     const { 
@@ -2391,7 +2386,7 @@ Provide the response in JSON format exactly like this:
 exports.getPhoneLogs = async (req, res) => {
   try {
     const adminPhones = (process.env.ADMIN_PHONES || '9413879444').split(',');
-    if (!adminPhones.includes(req.user.phone)) {
+    if (!adminPhones.includes(req.user.phone) && !req.user.isAdmin && !req.user.isDeveloper) {
       return res.status(403).json({ status: 'error', message: 'Forbidden' });
     }
     
@@ -2445,5 +2440,70 @@ exports.getOnboardingProgress = async (req, res) => {
   } catch (error) {
     console.error('[User Controller getOnboardingProgress Error]', error);
     res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+};
+
+exports.createDeveloperAccount = async (req, res) => {
+  try {
+    const adminPhone = process.env.ADMIN_PHONE || '9999999999';
+    const isSpecialDev = (req.user && req.user.phone === '9413879444');
+    if (!req.user || (req.user.phone !== adminPhone && !isSpecialDev && !req.user.isAdmin && !req.user.isDeveloper)) {
+      return res.status(403).json({ status: 'error', message: 'Forbidden. Admin access required.' });
+    }
+
+    const { phone, password, firstName, lastName, gender } = req.body;
+    if (!phone || !password || !firstName || !lastName || !gender) {
+      return res.status(400).json({ status: 'error', message: 'All fields are required.' });
+    }
+
+    const existingUser = await User.findOne({ phone });
+    if (existingUser) {
+      return res.status(400).json({ status: 'error', message: 'Phone number already registered.' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = new User({
+      phone,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      gender,
+      isDeveloper: true,
+      profileFor: 'Self',
+      email: `${phone}@perfectbandhan.com`,
+      dob: new Date('1990-01-01'),
+      height: "5'5\"",
+      city: 'Developer City',
+      state: 'Developer State',
+      maritalStatus: 'Never Married',
+      education: 'Developer',
+      profession: 'Corporate Job',
+      incomeBracket: '10 LPA +',
+      nukh: 'Dev',
+      bio: 'Developer Account',
+      uploadedPhotos: ['https://res.cloudinary.com/dwp8pl2n6/image/upload/v1783682151/sindhi_shadi/profiles/default.jpg'],
+      surname: lastName,
+      monthlyIncome: '100000',
+      yearlyIncome: '10 LPA +',
+      district: 'Developer District',
+      properAddress: 'Developer Address',
+      ownHouse: 'Yes',
+      complexion: 'Fair',
+      weight: '60',
+      fatherStatus: 'Alive',
+      motherStatus: 'Alive',
+      siblingsCount: '0',
+      sindhiType: 'Sindhi Hindu',
+      whatsappNumber: phone
+    });
+
+    await newUser.save();
+    return res.status(200).json({ status: 'success', message: 'Developer account created successfully.' });
+  } catch (error) {
+    console.error('[Admin] Create Developer Error:', error);
+    return res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
