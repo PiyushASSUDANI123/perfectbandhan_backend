@@ -464,7 +464,7 @@ exports.checkPhone = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone number is required.' });
     }
     const User = require('../models/user.model');
-const generateUniquePbId = require('../utils/generatePbId');
+    const generateUniquePbId = require('../utils/generatePbId');
     const PhoneLog = require('../models/phonelog.model');
     
     // Log the phone number attempt
@@ -483,5 +483,88 @@ const generateUniquePbId = require('../utils/generatePbId');
   } catch (error) {
     console.error('[Check Phone Error]', error);
     return res.status(500).json({ status: 'error', message: 'Server error checking phone number.' });
+  }
+};
+
+// Helper: mask an email address like p************6@gmail.com
+function maskEmail(email) {
+  if (!email || !email.includes('@')) return null;
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) return `${local[0]}*@${domain}`;
+  const masked = local[0] + '*'.repeat(Math.max(local.length - 2, 4)) + local[local.length - 1];
+  return `${masked}@${domain}`;
+}
+
+/**
+ * GET EMAIL HINT
+ * POST /auth/get-email-hint
+ * Body: { phone }
+ * Returns masked email so user can identify their account
+ */
+exports.getEmailHint = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !/^\d{10}$/.test(phone)) {
+      return res.status(400).json({ status: 'error', message: 'Valid 10-digit phone number is required.' });
+    }
+
+    const user = await User.findOne({ phone });
+    if (!user || !user.email || user.email === 'temp@sindhishadi.com') {
+      return res.status(404).json({ status: 'error', message: 'No account found with this phone number.' });
+    }
+
+    const maskedEmail = maskEmail(user.email);
+    console.log(`[Auth] Email hint requested for +91 ${phone} → ${maskedEmail}`);
+    return res.status(200).json({
+      status: 'success',
+      maskedEmail,
+    });
+  } catch (error) {
+    console.error('[Auth getEmailHint Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error fetching email hint.' });
+  }
+};
+
+/**
+ * RESET PASSWORD WITH EMAIL VERIFICATION
+ * POST /auth/reset-password-with-email
+ * Body: { phone, email, newPassword }
+ * Verifies email matches DB, then sets new bcrypt password
+ */
+exports.resetPasswordWithEmail = async (req, res) => {
+  try {
+    const { phone, email, newPassword } = req.body;
+
+    if (!phone || !email || !newPassword) {
+      return res.status(400).json({ status: 'error', message: 'Phone, email and new password are required.' });
+    }
+    if (!/^\d{10}$/.test(phone)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid phone number.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters.' });
+    }
+
+    const user = await User.findOne({ phone });
+    if (!user || !user.email || user.email === 'temp@sindhishadi.com') {
+      return res.status(404).json({ status: 'error', message: 'No account found with this phone number.' });
+    }
+
+    // Case-insensitive email match
+    if (user.email.toLowerCase().trim() !== email.toLowerCase().trim()) {
+      console.warn(`[Auth] Wrong email for reset: +91 ${phone} entered "${email}" but DB has "${user.email}"`);
+      return res.status(400).json({ status: 'error', message: 'Email address does not match our records.' });
+    }
+
+    // Hash and save new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    await User.updateOne({ phone }, { $set: { password: hashedPassword } });
+
+    console.log(`[Auth] ✅ Password reset successful for +91 ${phone}`);
+    return res.status(200).json({ status: 'success', message: 'Password reset successfully. Please login.' });
+  } catch (error) {
+    console.error('[Auth resetPasswordWithEmail Error]', error);
+    return res.status(500).json({ status: 'error', message: 'Server error resetting password.' });
   }
 };
