@@ -8,6 +8,7 @@ const AppConfig = require('../models/config.model');
 const User = require('../models/user.model');
 const generateUniquePbId = require('../utils/generatePbId');
 const PhoneLog = require('../models/phonelog.model');
+const dbService = require('../services/db.service');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -60,13 +61,19 @@ exports.sendOtp = async (req, res) => {
     // Generate OTP
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // Store in MongoDB instead of RAM to survive PM2 restarts
-    const expiresAt = new Date(Date.now() + 300000); // 5 mins
-    await User.findOneAndUpdate(
-      { phone },
-      { $set: { verificationOtp: otp, otpExpiresAt: expiresAt } },
-      { upsert: true, new: true }
-    );
+    // Store OTP: prefer MongoDB (survives restarts), fall back to RAM cache if DB is down
+    if (dbService.ready) {
+      const expiresAt = new Date(Date.now() + 300000); // 5 mins
+      await User.findOneAndUpdate(
+        { phone },
+        { $set: { verificationOtp: otp, otpExpiresAt: expiresAt } },
+        { upsert: true, new: true }
+      );
+    } else {
+      // DB not ready — store OTP in-memory so user is not blocked
+      console.warn(`[Auth] ⚠️  DB unavailable — storing OTP for ${phone} in RAM cache (5 min TTL)`);
+      cacheService.set(`otp_${phone}`, otp, 300000); // 5 minutes
+    }
 
     // Set 60 second cooldown to prevent WhatsApp spam ban
     cacheService.set(cooldownKey, true, 60000);
@@ -100,29 +107,45 @@ exports.verifyOtp = async (req, res) => {
 
     console.log(`[Auth] Verifying OTP "${otp}" for +91 ${phone}`);
 
-    // Fetch from MongoDB to survive server restarts
-    const userRecord = await User.findOne({ phone });
-    if (!userRecord || !userRecord.verificationOtp || !userRecord.otpExpiresAt) {
-      return res.status(400).json({ status: 'error', message: 'No OTP requested or OTP has expired.' });
-    }
-
-    if (new Date() > userRecord.otpExpiresAt) {
-      return res.status(400).json({ status: 'error', message: 'OTP has expired. Please request a new one.' });
-    }
-
     const cleanOtp = String(otp).trim();
-    const cleanDbOtp = String(userRecord.verificationOtp).trim();
 
-    // Direct check
-    if (cleanDbOtp === cleanOtp) {
-      // clear the OTP
-      await User.updateOne(
-        { _id: userRecord._id },
-        { $unset: { verificationOtp: 1, otpExpiresAt: 1 } }
-      );
-      
+    // --- Primary: check MongoDB ---
+    if (dbService.ready) {
+      const userRecord = await User.findOne({ phone });
+
+      if (userRecord && userRecord.verificationOtp && userRecord.otpExpiresAt) {
+        if (new Date() > userRecord.otpExpiresAt) {
+          return res.status(400).json({ status: 'error', message: 'OTP has expired. Please request a new one.' });
+        }
+
+        const cleanDbOtp = String(userRecord.verificationOtp).trim();
+        if (cleanDbOtp === cleanOtp) {
+          // Clear OTP from DB
+          await User.updateOne(
+            { _id: userRecord._id },
+            { $unset: { verificationOtp: 1, otpExpiresAt: 1 } }
+          );
+          const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
+          const isProfileComplete = await userController.profileExists(phone);
+          return res.status(200).json({
+            status: 'success',
+            message: 'OTP verified successfully',
+            token,
+            isProfileComplete
+          });
+        }
+      }
+    }
+
+    // --- Fallback: check RAM cache (used when DB was down during sendOtp) ---
+    const cachedOtp = cacheService.get(`otp_${phone}`);
+    if (cachedOtp && String(cachedOtp).trim() === cleanOtp) {
+      console.log(`[Auth] ✅ OTP verified from RAM cache for +91 ${phone}`);
+      cacheService.delete(`otp_${phone}`);
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
-      const isProfileComplete = await userController.profileExists(phone);
+      // profileExists may still fail if DB is down — return minimal success
+      let isProfileComplete = false;
+      try { isProfileComplete = await userController.profileExists(phone); } catch (_) {}
       return res.status(200).json({
         status: 'success',
         message: 'OTP verified successfully',
@@ -133,7 +156,7 @@ exports.verifyOtp = async (req, res) => {
 
     return res.status(400).json({
       status: 'error',
-      message: 'Invalid OTP code. Please check your WhatsApp messages.'
+      message: 'Invalid OTP code or OTP has expired. Please request a new one.'
     });
   } catch (error) {
     console.error('[Auth Error]', error);
