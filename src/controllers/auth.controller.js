@@ -79,7 +79,16 @@ exports.sendOtp = async (req, res) => {
     cacheService.set(cooldownKey, true, 60000);
 
     // Dispatch OTP through isolated WhatsApp Service
-    await whatsappService.sendOtp(phone, otp);
+    const otpSent = await whatsappService.sendOtp(phone, otp);
+
+    if (!otpSent) {
+      // WhatsApp is down — clear cooldown so user can retry sooner
+      cacheService.delete(cooldownKey);
+      return res.status(503).json({
+        status: 'error',
+        message: 'WhatsApp service is temporarily unavailable. Please try again in a minute.'
+      });
+    }
 
     return res.status(200).json({
       status: 'success',
