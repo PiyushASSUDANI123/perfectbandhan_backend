@@ -17,7 +17,7 @@ async function generateUniquePbId() {
 
 async function migrate() {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/shadi');
+    await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB. Migrating pbIds...');
     
     const users = await User.find({ $or: [{ pbId: { $exists: false } }, { pbId: '' }] });
