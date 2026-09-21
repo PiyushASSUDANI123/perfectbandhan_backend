@@ -458,7 +458,8 @@ exports.getProfiles = async (req, res) => {
       phone: { $nin: excludedPhones },
       reportedBy: { $ne: callerPhone },
       blockedBy: { $ne: callerPhone },
-      firstName: { $exists: true, $ne: '' }
+      firstName: { $exists: true, $regex: /\\S/ }, // Mongoose interprets String regex properly if passed as a regex literal or string
+      email: { $ne: 'temp@sindhishadi.com' }
     };
 
     const {
@@ -621,7 +622,8 @@ exports.getProfiles = async (req, res) => {
             phone: { $nin: excludedPhones },
             reportedBy: { $ne: callerPhone },
             blockedBy: { $ne: callerPhone },
-            firstName: { $exists: true, $ne: '' },
+            firstName: { $exists: true, $regex: /\\S/ },
+            email: { $ne: 'temp@sindhishadi.com' },
             _id: { $nin: fetchedIds }
           };
           
