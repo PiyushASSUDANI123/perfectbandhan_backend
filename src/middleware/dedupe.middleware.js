@@ -30,28 +30,30 @@ function createDedupeMiddleware(keyGenerator, ttlMs = 5000) {
     const lockAcquired = await redisService.acquireLock(lockKey, Math.ceil(ttlMs / 1000));
     
     if (!lockAcquired) {
-      // Another instance is processing - wait and retry
-      console.log(`[Dedupe] Lock held for ${key}, waiting...`);
-      
-      // Wait for lock to be released (poll)
-      const maxWait = ttlMs;
-      const startTime = Date.now();
-      
-      while (Date.now() - startTime < maxWait) {
-        await new Promise(r => setTimeout(r, 50));
-        if (!await redisService.client.exists(`lock:${lockKey}`)) {
-          break;
+      if (!redisService.isReady) {
+        console.warn(`[Dedupe] Redis not ready, bypassing lock for ${key}`);
+      } else {
+        // Another instance is processing - wait and retry
+        console.log(`[Dedupe] Lock held for ${key}, waiting...`);
+        
+        // Wait for lock to be released (poll)
+        const maxWait = ttlMs;
+        const startTime = Date.now();
+        
+        while (Date.now() - startTime < maxWait) {
+          await new Promise(r => setTimeout(r, 50));
+          if (!await redisService.client.exists(`lock:${lockKey}`)) {
+            break;
+          }
+        }
+        
+        // Try to get cached result after lock released
+        const cached = await redisService.get(`cache:${key}`);
+        if (cached) {
+          return res.json(cached);
         }
       }
-      
-      // Try to get cached result after lock released
-      const cached = await redisService.get(`cache:${key}`);
-      if (cached) {
-        return res.json(cached);
-      }
     }
-    
-    // We got the lock - execute the request
     const originalJson = res.json.bind(res);
     let responseData = null;
     
