@@ -4,10 +4,6 @@ const AppConfig = require('../models/config.model');
 const https = require('https');
 const authController = require('./auth.controller');
 
-// In-Memory Cache for AppConfig to protect database limits
-let _cachedAppConfig = null;
-let _lastCacheUpdate = 0;
-const CACHE_TTL = 60000; // 60 seconds backup TTL, but mostly updated immediately by admin
 const Interest = require('../models/interest.model');
 const Message = require('../models/message.model');
 const fcmService = require('../services/fcm.service');
@@ -133,8 +129,8 @@ exports.createProfile = async (req, res) => {
     // Bind authenticated JWT phone to payload
     if (req.user && req.user.authProvider === 'google') {
       // In Google Login, phone is provided by the frontend in req.body
-      if (!profileData.phone || !/^\d{10}$/.test(profileData.phone)) {
-        return res.status(400).json({ status: 'error', message: 'Valid 10-digit phone number is required.' });
+      if (!profileData.phone || !/^[6-9]\d{9}$/.test(profileData.phone)) {
+        return res.status(400).json({ status: 'error', message: 'Valid 10-digit Indian mobile number starting with 6-9 is required.' });
       }
       profileData.email = req.user.email;
       profileData.googleId = req.user.googleId;
@@ -331,8 +327,11 @@ exports.getProfileById = async (req, res) => {
     let kundaliScore = null;
     let kundaliMessage = "Birth details not provided";
     let interestStatus = 'none';
+    let isMutualConnection = false;
+    let isOwnProfile = false;
 
     if (callerPhone) {
+      isOwnProfile = (callerPhone === p.phone);
       const myUser = await User.findOne({ phone: callerPhone });
       if (myUser && p.dob && myUser.dob) {
         kundaliScore = calculateKundaliScore(myUser, p);
@@ -349,13 +348,50 @@ exports.getProfileById = async (req, res) => {
         ]
       });
 
-      const isConnected = interests.some(i => i.status === 'accepted');
+      const mutualAccepted = interests.filter(i => i.status === 'accepted');
+      const fromCaller = mutualAccepted.some(i => i.from_phone === callerPhone);
+      const toCaller = mutualAccepted.some(i => i.from_phone === p.phone);
+      isMutualConnection = fromCaller && toCaller;
+
       const sentInterest = interests.some(i => i.from_phone === callerPhone && i.status === 'pending');
       const receivedInterest = interests.some(i => i.from_phone === p.phone && i.status === 'pending');
 
-      if (isConnected) interestStatus = 'accepted';
+      if (isMutualConnection) interestStatus = 'accepted';
       else if (sentInterest) interestStatus = 'pending';
       else if (receivedInterest) interestStatus = 'incoming';
+    }
+    
+    // If not own profile and no mutual connection, return 403 (locked)
+    if (!isOwnProfile && !isMutualConnection) {
+      return res.status(403).json({ 
+        status: 'locked', 
+        message: 'This profile is locked. Send an interest request and wait for mutual acceptance to view contact details and chat.',
+        data: {
+          id: p._id.toString(),
+          name: `${p.firstName} ${p.lastName}`,
+          age: null,
+          height: p.height,
+          caste: p.caste,
+          profession: p.profession,
+          company: p.company,
+          location: p.location,
+          education: p.education,
+          bio: p.bio,
+          compatibilityScore: p.compatibilityScore,
+          initials: p.initials,
+          fathersOccupation: p.fathersOccupation,
+          incomeBracket: p.incomeHidden ? 'Private' : p.incomeBracket,
+          professionSector: p.professionSector,
+          gradientColors: p.gradientColors,
+          photos: p.uploadedPhotos,
+          interestStatus: interestStatus,
+          profileHidden: p.profileHidden || false,
+          incomeHidden: p.incomeHidden || false,
+          photosVisibility: p.photosVisibility || 'All Matches',
+          kundaliScore: null,
+          kundaliMessage: "Connect to unlock Kundali matching",
+        }
+      });
     }
     
     // Compute age dynamically
@@ -370,6 +406,7 @@ exports.getProfileById = async (req, res) => {
       }
     }
 
+    // Base profile (always visible for own profile or mutual connection)
     const mappedProfile = {
       id: p._id.toString(),
       name: `${p.firstName} ${p.lastName}`,
@@ -388,37 +425,43 @@ exports.getProfileById = async (req, res) => {
       professionSector: p.professionSector,
       gradientColors: p.gradientColors,
       photos: p.uploadedPhotos,
-      phone: p.phone,
-      whatsappNumber: p.whatsappNumber || '',
       interestStatus: interestStatus,
-      monthlyIncome: p.incomeHidden ? 'Private' : (p.monthlyIncome || ''),
-      yearlyIncome: p.incomeHidden ? 'Private' : (p.yearlyIncome || ''),
-      district: p.district || '',
-      properAddress: p.properAddress || '',
-      jobPost: p.jobPost || '',
-      ownHouse: p.ownHouse || '',
-      housePhoto: p.housePhoto || '',
-      surname: p.surname || '',
-      nukh: p.nukh || '',
-      requirements: p.requirements || '',
-      whatWeProvide: p.whatWeProvide || '',
-      physicalDisability: p.physicalDisability || '',
-      complexion: p.complexion || '',
-      weight: p.weight || '',
-      fatherStatus: p.fatherStatus || '',
-      motherStatus: p.motherStatus || '',
-      mothersOccupation: p.mothersOccupation || '',
-      siblingsCount: p.siblingsCount || '0',
-      siblingsDetails: p.siblingsDetails || '',
-      sindhiType: p.sindhiType || '',
       profileHidden: p.profileHidden || false,
       incomeHidden: p.incomeHidden || false,
       photosVisibility: p.photosVisibility || 'All Matches',
       kundaliScore: kundaliScore,
       kundaliMessage: kundaliMessage,
-      birthTime: p.birthTime || '',
-      birthPlace: p.birthPlace || ''
     };
+
+    // Private fields - only visible if mutual connection accepted or own profile
+    if (isMutualConnection || isOwnProfile) {
+      mappedProfile.phone = p.phone;
+      mappedProfile.whatsappNumber = p.whatsappNumber || '';
+      mappedProfile.monthlyIncome = p.incomeHidden ? 'Private' : (p.monthlyIncome || '');
+      mappedProfile.yearlyIncome = p.incomeHidden ? 'Private' : (p.yearlyIncome || '');
+      mappedProfile.district = p.district || '';
+      mappedProfile.properAddress = p.properAddress || '';
+      mappedProfile.jobPost = p.jobPost || '';
+      mappedProfile.ownHouse = p.ownHouse || '';
+      mappedProfile.housePhoto = p.housePhoto || '';
+      mappedProfile.surname = p.surname || '';
+      mappedProfile.nukh = p.nukh || '';
+      mappedProfile.requirements = p.requirements || '';
+      mappedProfile.whatWeProvide = p.whatWeProvide || '';
+      mappedProfile.physicalDisability = p.physicalDisability || '';
+      mappedProfile.complexion = p.complexion || '';
+      mappedProfile.weight = p.weight || '';
+      mappedProfile.fatherStatus = p.fatherStatus || '';
+      mappedProfile.motherStatus = p.motherStatus || '';
+      mappedProfile.mothersOccupation = p.mothersOccupation || '';
+      mappedProfile.siblingsCount = p.siblingsCount || '0';
+      mappedProfile.siblingsDetails = p.siblingsDetails || '';
+      mappedProfile.sindhiType = p.sindhiType || '';
+      mappedProfile.birthTime = p.birthTime || '';
+      mappedProfile.birthPlace = p.birthPlace || '';
+    } else {
+      mappedProfile.phone = 'LOCKED';
+    }
 
     return res.status(200).json({ status: 'success', data: mappedProfile });
   } catch (error) {
@@ -944,7 +987,7 @@ exports.cancelInterest = async (req, res) => {
 };
 
 
-// GET /api/v1/user/interests (Get incoming pending interests)
+// GET /api/v1/user/interests (Get interests by type: incoming, sent, accepted)
 exports.getInterests = async (req, res) => {
   try {
     if (!req.user || !req.user.phone) {
@@ -952,17 +995,50 @@ exports.getInterests = async (req, res) => {
     }
 
     const callerPhone = req.user.phone;
+    const type = req.query.type || 'incoming'; // incoming, sent, accepted
     
-    // Find pending interests sent to callerPhone
-    const incomingInterests = await Interest.find({ to_phone: callerPhone, status: 'pending' }).lean();
-    const incomingPhones = incomingInterests.map(i => i.from_phone);
+    let interestQuery = {};
+    let interestStatus = 'incoming';
+
+    switch (type) {
+      case 'sent':
+        interestQuery = { from_phone: callerPhone, status: 'pending' };
+        interestStatus = 'pending';
+        break;
+      case 'accepted':
+        interestQuery = { 
+          $or: [
+            { from_phone: callerPhone, status: 'accepted' },
+            { to_phone: callerPhone, status: 'accepted' }
+          ]
+        };
+        interestStatus = 'accepted';
+        break;
+      case 'incoming':
+      default:
+        interestQuery = { to_phone: callerPhone, status: 'pending' };
+        interestStatus = 'incoming';
+        break;
+    }
+
+    const interests = await Interest.find(interestQuery).lean();
+    
+    // For accepted, we need to get the OTHER party's phone
+    let targetPhones;
+    if (type === 'accepted') {
+      targetPhones = interests.map(i => i.from_phone === callerPhone ? i.to_phone : i.from_phone);
+    } else if (type === 'sent') {
+      targetPhones = interests.map(i => i.to_phone);
+    } else {
+      targetPhones = interests.map(i => i.from_phone);
+    }
 
     const caller = await User.findOne({ phone: callerPhone }).lean();
     const blocked = caller ? (caller.blockedUsers || []) : [];
 
     // Fetch corresponding user profiles
     const users = await User.find({ 
-      phone: { $in: incomingPhones, $nin: blocked },
+      phone: { $in: targetPhones, $nin: blocked },
       blockedBy: { $ne: callerPhone }
     }).lean();
     
@@ -999,7 +1075,7 @@ exports.getInterests = async (req, res) => {
         phone: p.phone || '',
         whatsappNumber: p.whatsappNumber || '',
         sindhiType: p.sindhiType || 'Sindhi Hindu',
-        interestStatus: 'incoming',
+        interestStatus: interestStatus,
         monthlyIncome: p.monthlyIncome || '',
         yearlyIncome: p.yearlyIncome || '',
         district: p.district || '',
@@ -1028,7 +1104,7 @@ exports.getInterests = async (req, res) => {
     });
   } catch (error) {
     console.error('[User Controller getInterests Error]', error);
-    return res.status(500).json({ status: 'error', message: 'Server failed to query incoming interests.' });
+    return res.status(500).json({ status: 'error', message: 'Server failed to query interests.' });
   }
 };
 
@@ -1187,16 +1263,32 @@ exports.changePassword = async (req, res) => {
     }
 
     const dbPassword = user.password || '';
-    
-    const config = await AppConfig.findOne();
-    const bypassPassword = config?.developerBypassPassword || '123456';
+    let isValid = false;
 
-    const isValid = currentPassword === bypassPassword || (dbPassword && currentPassword === dbPassword);
+    if (dbPassword) {
+      if (dbPassword.startsWith('$2a$') || dbPassword.startsWith('$2b$')) {
+        isValid = await bcrypt.compare(currentPassword, dbPassword);
+      } else {
+        isValid = (currentPassword === dbPassword);
+        if (isValid) {
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash(currentPassword, salt);
+          await User.updateOne({ phone: callerPhone }, { $set: { password: hashedPassword } });
+        }
+      }
+    }
+
     if (!isValid) {
       return res.status(400).json({ status: 'error', message: 'Incorrect current password.' });
     }
 
-    user.password = newPassword;
+    if (newPassword.length < 6) {
+      return res.status(400).json({ status: 'error', message: 'New password must be at least 6 characters.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    user.password = hashedPassword;
     await user.save();
 
     return res.status(200).json({
@@ -1288,9 +1380,9 @@ exports.sendChatMessage = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Target user not found.' });
     }
 
-    // STRICT CHAT LOCK: Verify there is an accepted mutual interest
+    // STRICT CHAT LOCK: Verify there is an accepted mutual interest (both directions accepted)
     const Interest = require('../models/interest.model');
-    const mutualInterest = await Interest.findOne({
+    const mutualInterests = await Interest.find({
       $or: [
         { from_phone: callerPhone, to_phone: targetUserObj.phone },
         { from_phone: targetUserObj.phone, to_phone: callerPhone }
@@ -1298,7 +1390,11 @@ exports.sendChatMessage = async (req, res) => {
       status: 'accepted'
     });
     
-    if (!mutualInterest && callerPhone !== '9413879444' && callerPhone !== '+919413879444') {
+    const fromCallerAccepted = mutualInterests.some(i => i.from_phone === callerPhone);
+    const toCallerAccepted = mutualInterests.some(i => i.from_phone === targetUserObj.phone);
+    const isMutualConnection = fromCallerAccepted && toCallerAccepted;
+    
+    if (!isMutualConnection && callerPhone !== '9413879444' && callerPhone !== '+919413879444') {
       return res.status(403).json({ status: 'locked', message: 'Chat is locked. You must have an accepted mutual interest first.' });
     }
 
@@ -1339,7 +1435,8 @@ exports.sendChatMessage = async (req, res) => {
     // Regex Masking for Contact Info / UPI
     let maskedText = text;
     let isHidden = false;
-    const contactRegex = /(\b\d{10}\b|@ybl|@okaxis|@okhdfc|@okicici|paytm|\b\d{5,}\b)/gi;
+    // More precise regex: Indian mobile (starts with 6-9, 10 digits), UPI handles, explicit phone keywords
+    const contactRegex = /(\b[6-9]\d{9}\b|@ybl\b|@okaxis\b|@okhdfc\b|@okicici\b|@paytm\b|@upi\b|phone\s*:?\s*[6-9]\d{9}|mobile\s*:?\s*[6-9]\d{9}|whatsapp\s*:?\s*[6-9]\d{9})/gi;
     if (contactRegex.test(maskedText)) {
       maskedText = "[Contact Hidden for Safety]";
       isHidden = true;

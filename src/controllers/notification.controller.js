@@ -94,7 +94,7 @@ exports.createNotification = async (req, res) => {
     
     await newNotification.save();
     
-    // Send Push Notification asynchronously
+    // Send Push Notification asynchronously (batched)
     try {
       if (targetPhone) {
         const user = await User.findOne({ phone: targetPhone });
@@ -102,9 +102,13 @@ exports.createNotification = async (req, res) => {
           fcmService.sendPushNotification(user.fcmToken, title, body);
         }
       } else {
-        const users = await User.find({ fcmToken: { $exists: true, $ne: '' } });
-        for (const user of users) {
-          fcmService.sendPushNotification(user.fcmToken, title, body);
+        const users = await User.find({ fcmToken: { $exists: true, $ne: '' } }).lean();
+        const tokens = users.map(u => u.fcmToken).filter(Boolean);
+        if (tokens.length > 0) {
+          // Batch send using Promise.allSettled to avoid sequential blocking
+          await Promise.allSettled(
+            tokens.map(token => fcmService.sendPushNotification(token, title, body))
+          );
         }
       }
     } catch (pushErr) {

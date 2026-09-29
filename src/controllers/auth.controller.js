@@ -15,18 +15,15 @@ if (!JWT_SECRET) {
   console.warn('[Warning] JWT_SECRET is not configured in backend environment variables.');
 }
 
-// Track hit counts for non-bypass numbers to trigger simulated API errors (429/500)
-let requestCount = 0;
-
 exports.sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
 
-    // Security validation check
-    if (!phone || typeof phone !== 'string' || !/^\d{10}$/.test(phone)) {
+    // Security validation check - Indian mobile numbers start with 6-9
+    if (!phone || typeof phone !== 'string' || !/^[6-9]\d{9}$/.test(phone)) {
       return res.status(400).json({
         status: 'error',
-        message: 'Security check failed. Phone number must be exactly 10 digits.'
+        message: 'Security check failed. Enter a valid 10-digit Indian mobile number starting with 6-9.'
       });
     }
 
@@ -72,11 +69,11 @@ exports.sendOtp = async (req, res) => {
     } else {
       // DB not ready — store OTP in-memory so user is not blocked
       console.warn(`[Auth] ⚠️  DB unavailable — storing OTP for ${phone} in RAM cache (5 min TTL)`);
-      cacheService.set(`otp_${phone}`, otp, 300000); // 5 minutes
+      cacheService.set(`otp_${phone}`, otp, 300); // 5 minutes (300 seconds)
     }
 
     // Set 60 second cooldown to prevent WhatsApp spam ban
-    cacheService.set(cooldownKey, true, 60000);
+    cacheService.set(cooldownKey, true, 60);
 
     // Dispatch OTP through isolated WhatsApp Service
     const otpSent = await whatsappService.sendOtp(phone, otp);
@@ -493,8 +490,8 @@ function maskEmail(email) {
 exports.getEmailHint = async (req, res) => {
   try {
     const { phone } = req.body;
-    if (!phone || !/^\d{10}$/.test(phone)) {
-      return res.status(400).json({ status: 'error', message: 'Valid 10-digit phone number is required.' });
+    if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+      return res.status(400).json({ status: 'error', message: 'Valid 10-digit Indian mobile number starting with 6-9 is required.' });
     }
 
     const user = await User.findOne({ phone });
@@ -527,8 +524,8 @@ exports.resetPasswordWithEmail = async (req, res) => {
     if (!phone || !email || !newPassword) {
       return res.status(400).json({ status: 'error', message: 'Phone, email and new password are required.' });
     }
-    if (!/^\d{10}$/.test(phone)) {
-      return res.status(400).json({ status: 'error', message: 'Invalid phone number.' });
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid phone number. Must be a valid 10-digit Indian mobile number starting with 6-9.' });
     }
     if (newPassword.length < 6) {
       return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters.' });

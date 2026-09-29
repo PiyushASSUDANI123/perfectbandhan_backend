@@ -15,10 +15,10 @@ class CacheService {
    * Set a cached value
    * @param {string} key 
    * @param {any} value 
-   * @param {number} [ttlMs] - For backwards compatibility with ms, convert to seconds
+   * @param {number} [ttlSeconds] - TTL in seconds (default: 300)
    */
-  set(key, value, ttlMs = 300000) {
-    nodeCache.set(key, value, ttlMs / 1000);
+  set(key, value, ttlSeconds = 300) {
+    nodeCache.set(key, value, ttlSeconds);
   }
 
   /**
