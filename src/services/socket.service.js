@@ -1,6 +1,9 @@
 const { Server } = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { createClient } = require('redis');
 const Message = require('../models/message.model');
 const Conversation = require('../models/conversation.model');
+const redisService = require('./redis.service');
 
 // In-memory Map to track online users: userId -> socket.id
 const onlineUsers = new Map();
@@ -10,18 +13,32 @@ const rateLimits = new Map();
 const blockList = new Map();
 
 let io;
+let pubClient, subClient;
 
-exports.init = (httpServer) => {
+exports.init = async (httpServer) => {
   io = new Server(httpServer, {
     path: '/api/socket.io',
     cors: {
-      origin: '*', // Adjust for production if necessary
+      origin: '*',
       methods: ['GET', 'POST']
     }
   });
 
+  // Initialize Redis adapter for multi-instance scaling
+  if (redisService.isReady && redisService.client) {
+    try {
+      pubClient = redisService.client.duplicate();
+      subClient = redisService.client.duplicate();
+      await pubClient.connect();
+      await subClient.connect();
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log('[Socket.io] ✅ Redis adapter initialized for multi-instance scaling');
+    } catch (err) {
+      console.warn('[Socket.io] ⚠️ Redis adapter failed, using in-memory:', err.message);
+    }
+  }
+
   io.on('connection', (socket) => {
-    // Phase 2: Socket.io Setup & State Management
     const userId = socket.handshake.query.userId;
     
     if (userId) {
@@ -32,7 +49,6 @@ exports.init = (httpServer) => {
       console.warn(`Connection attempt without userId: ${socket.id}`);
     }
 
-    // Phase 3: Real-Time Messaging Logic & Rate Limiting
     socket.on('sendMessage', async (payload) => {
       try {
         const { senderId, receiverId, text } = payload;
@@ -43,28 +59,27 @@ exports.init = (httpServer) => {
 
         const now = Date.now();
 
-        // 1. Check if user is currently blocked
+        // Check if user is currently blocked
         if (blockList.has(senderId) && now < blockList.get(senderId)) {
           return socket.emit('messageError', { error: 'Rate limit exceeded. Blocked for 1 minute.' });
         }
 
-        // 2. Track messages per second
+        // Track messages per second
         const userRate = rateLimits.get(senderId) || { count: 0, startTime: now };
         
-        if (now - userRate.startTime < 1000) { // within 1 second
+        if (now - userRate.startTime < 1000) {
           userRate.count++;
           if (userRate.count > 3) {
-            blockList.set(senderId, now + 60000); // Block for 1 min
+            blockList.set(senderId, now + 60000);
             return socket.emit('messageError', { error: 'Sending too fast! Blocked for 1 minute.' });
           }
         } else {
-          // Reset timer
           userRate.count = 1;
           userRate.startTime = now;
         }
         rateLimits.set(senderId, userRate);
 
-        // 1. Check or create conversation
+        // Check or create conversation
         let conversation = await Conversation.findOne({
           participants: { $all: [senderId, receiverId] }
         });
@@ -80,26 +95,24 @@ exports.init = (httpServer) => {
           await conversation.save();
         }
 
-        // 2. Create the message
+        // Create the message
         const newMessage = new Message({
           conversationId: conversation._id,
           senderId,
           receiverId,
           text,
-          status: 'sent', // Will change to delivered if receiver is online
+          status: 'sent',
           isRead: false
         });
 
         await newMessage.save();
 
-        // 3. Emit message to receiver if they are online
+        // Emit message to receiver if they are online (works across instances via Redis adapter)
         const receiverSocketId = onlineUsers.get(receiverId);
         
         if (receiverSocketId) {
-          // Direct emission to receiver
           io.to(receiverSocketId).emit('receiveMessage', newMessage);
           
-          // Optionally, update status to delivered since it was sent to an active socket
           newMessage.status = 'delivered';
           await newMessage.save();
         }
@@ -128,3 +141,5 @@ exports.getIo = () => {
   }
   return io;
 };
+
+exports.getOnlineUsers = () => onlineUsers;

@@ -4,6 +4,8 @@ const path = require('path');
 const compression = require('compression');
 const helmet = require('helmet');
 const { rateLimit } = require('express-rate-limit');
+const RedisStore = require('rate-limit-redis');
+const redisService = require('./services/redis.service');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const notificationRoutes = require('./routes/notification.routes');
@@ -12,7 +14,6 @@ const app = express();
 app.set('trust proxy', 1); // Fixes express-rate-limit error behind Nginx/Proxy
 
 // ─── Global 10-Second Request Timeout Middleware ──────────────────────────────
-// If any route takes more than 10s, send 504 to prevent resource exhaustion
 app.use((req, res, next) => {
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
@@ -22,47 +23,134 @@ app.use((req, res, next) => {
       });
     }
   }, 30000);
-  // Clear the timer when response finishes
   res.on('finish', () => clearTimeout(timeout));
   res.on('close', () => clearTimeout(timeout));
   next();
 });
 
-// ─── OTP Rate Limiter: Anti-Spam Shield ───────────────────────────────────────
-// Strictly limits OTP send requests to 5 per IP per minute
-const otpRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 5,              // max 5 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { xForwardedForHeader: false, trustProxy: false, default: false },
-  message: {
-    status: 'error',
-    message: 'Too many OTP requests from this IP. Please wait 1 minute before trying again.'
+// ─── Redis-based Rate Limiters (distributed across instances) ───────────────────
+const createRedisLimiter = (windowMs, max, message, keyPrefix) => {
+  if (!redisService.isReady) {
+    // Fallback to memory store if Redis not ready
+    return rateLimit({
+      windowMs,
+      max,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { status: 'error', message },
+    });
   }
-});
+  
+  return rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+      sendCommand: (...args) => redisService.client.sendCommand(args),
+      prefix: `rl:${keyPrefix}:`,
+    }),
+    keyGenerator: (req) => req.ip,
+    handler: (req, res) => {
+      res.status(429).json({ status: 'error', message });
+    },
+  });
+};
 
-// ─── Global Rate Limiter ───────────────────────────────────────────────────────
-// Limits all generic requests to 500 per IP per 10 minutes to prevent DDoS
-const globalRateLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 500,                 // 500 requests per window
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { xForwardedForHeader: false, trustProxy: false, default: false },
-  message: {
-    status: 'error',
-    message: 'Too many requests from this IP. Please try again after 10 minutes.'
-  }
-});
+// OTP Rate Limiter: 5 per IP per minute
+const otpRateLimiter = createRedisLimiter(
+  60 * 1000, 5,
+  'Too many OTP requests from this IP. Please wait 1 minute before trying again.',
+  'otp'
+);
+
+// Login Rate Limiter: 10 per IP per 15 minutes
+const loginRateLimiter = createRedisLimiter(
+  15 * 60 * 1000, 10,
+  'Too many login attempts. Please try again after 15 minutes.',
+  'login'
+);
+
+// Profile write Rate Limiter: 30 per IP per minute (create/update profile)
+const profileWriteLimiter = createRedisLimiter(
+  60 * 1000, 30,
+  'Too many profile updates. Please wait a moment.',
+  'profile-write'
+);
+
+// Chat/send message Rate Limiter: 20 per IP per minute
+const chatLimiter = createRedisLimiter(
+  60 * 1000, 20,
+  'Too many messages. Please slow down.',
+  'chat'
+);
+
+// Search Rate Limiter: 60 per IP per minute
+const searchLimiter = createRedisLimiter(
+  60 * 1000, 60,
+  'Too many search requests. Please wait a moment.',
+  'search'
+);
+
+// Global Rate Limiter: 500 per IP per 10 minutes
+const globalRateLimiter = createRedisLimiter(
+  10 * 60 * 1000, 500,
+  'Too many requests from this IP. Please try again after 10 minutes.',
+  'global'
+);
 
 // Standard Apple-minimal server middleware
 app.use(helmet()); // Secure HTTP headers
 app.use(cors());
-app.use(compression());
+app.use(compression({
+  level: 6,
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ETag support for conditional requests (304 Not Modified)
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = (data) => {
+    // Generate simple ETag for JSON responses
+    if (data && typeof data === 'object' && req.method === 'GET') {
+      const etag = require('crypto')
+        .createHash('md5')
+        .update(JSON.stringify(data))
+        .digest('hex')
+        .substring(0, 16);
+      res.set('ETag', `W/"${etag}"`);
+      
+      // Check If-None-Match header
+      const clientETag = req.headers['if-none-match'];
+      if (clientETag && clientETag === `W/"${etag}"`) {
+        return res.status(304).end();
+      }
+    }
+    return originalJson(data);
+  };
+  next();
+});
+
 app.use('/api', globalRateLimiter); // Apply global limit to API routes
+
+// Apply specific rate limiters to routes
+app.use('/api/v1/auth/send-otp', otpRateLimiter);
+app.use('/api/v1/auth/verify-otp', otpRateLimiter);
+app.use('/api/v1/auth/login-pass', loginRateLimiter);
+app.use('/api/v1/auth/google-login', loginRateLimiter);
+app.use('/api/v1/auth/set-password', loginRateLimiter);
+app.use('/api/v1/auth/reset-password-with-email', loginRateLimiter);
+app.use('/api/v1/user/profile', profileWriteLimiter);
+app.use('/api/v1/user/chat/send', chatLimiter);
+app.use('/api/v1/user/profiles', searchLimiter);
+app.use('/api/v1/user/profile/', searchLimiter); // profile by ID
+app.use('/api/v1/user/interests', searchLimiter);
 
 // Root simple health check
 app.get('/', (req, res) => {

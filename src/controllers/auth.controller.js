@@ -69,18 +69,18 @@ exports.sendOtp = async (req, res) => {
     } else {
       // DB not ready — store OTP in-memory so user is not blocked
       console.warn(`[Auth] ⚠️  DB unavailable — storing OTP for ${phone} in RAM cache (5 min TTL)`);
-      cacheService.set(`otp_${phone}`, otp, 300); // 5 minutes (300 seconds)
+      await cacheService.set(`otp_${phone}`, otp, 300); // 5 minutes (300 seconds)
     }
 
     // Set 60 second cooldown to prevent WhatsApp spam ban
-    cacheService.set(cooldownKey, true, 60);
+    await cacheService.set(cooldownKey, true, 60);
 
     // Dispatch OTP through isolated WhatsApp Service
     const otpSent = await whatsappService.sendOtp(phone, otp);
 
     if (!otpSent) {
       // WhatsApp is down — clear cooldown so user can retry sooner
-      cacheService.delete(cooldownKey);
+      await cacheService.delete(cooldownKey);
       return res.status(503).json({
         status: 'error',
         message: 'WhatsApp service is temporarily unavailable. Please try again in a minute.'
@@ -144,10 +144,10 @@ exports.verifyOtp = async (req, res) => {
     }
 
     // --- Fallback: check RAM cache (used when DB was down during sendOtp) ---
-    const cachedOtp = cacheService.get(`otp_${phone}`);
+    const cachedOtp = await cacheService.get(`otp_${phone}`);
     if (cachedOtp && String(cachedOtp).trim() === cleanOtp) {
       console.log(`[Auth] ✅ OTP verified from RAM cache for +91 ${phone}`);
-      cacheService.delete(`otp_${phone}`);
+      await cacheService.delete(`otp_${phone}`);
       const token = jwt.sign({ phone }, JWT_SECRET, { expiresIn: '30d' });
       // profileExists may still fail if DB is down — return minimal success
       let isProfileComplete = false;

@@ -2,11 +2,23 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/user.controller');
 const auth = require('../middleware/auth.middleware');
+const { createDedupeMiddleware } = require('../middleware/dedupe.middleware');
+
+// Dedupe middleware for profile reads (prevents duplicate simultaneous requests)
+const profileDedupe = createDedupeMiddleware(
+  (req) => req.user ? `profile:${req.params.id || req.user.phone}:${req.path}` : null,
+  3000
+);
+
+const searchDedupe = createDedupeMiddleware(
+  (req) => req.user ? `search:${req.user.phone}:${JSON.stringify(req.query)}` : null,
+  2000
+);
 
 router.post('/profile', auth, userController.createProfile);
 router.get('/profile/me', auth, userController.getMyProfile);
-router.get('/profile/:id', auth, userController.getProfileById);
-router.get('/profiles', auth, userController.getProfiles);
+router.get('/profile/:id', auth, profileDedupe, userController.getProfileById);
+router.get('/profiles', auth, searchDedupe, userController.getProfiles);
 
 // Astrology Insight
 router.post('/astrology-insight', auth, userController.getAstrologyInsight);

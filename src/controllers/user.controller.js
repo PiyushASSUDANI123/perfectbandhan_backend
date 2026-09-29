@@ -9,6 +9,7 @@ const Message = require('../models/message.model');
 const fcmService = require('../services/fcm.service');
 const cloudinaryService = require('../services/cloudinary.service');
 const cacheService = require('../services/cache.service');
+const { queueProfileWrite, invalidateCache } = require('../middleware/dedupe.middleware');
 
 exports.profileExists = async (phone) => {
   try {
@@ -260,13 +261,20 @@ exports.createProfile = async (req, res) => {
       if (user.phone === '9413879444') {
         await user.save({ validateBeforeSave: false });
       } else {
-        await user.save();
+        // Use write-behind cache for profile updates to reduce DB load
+        await queueProfileWrite(user._id, profileData);
+        // Also update local object for immediate response
+        Object.assign(user, profileData);
       }
     } else {
       profileData.pbId = await generateUniquePbId();
       user = new User(profileData);
       await user.save();
     }
+
+    // Invalidate cache for this profile
+    await invalidateCache(`cache:profile:${profileData.phone}*`);
+    await invalidateCache(`cache:search:${profileData.phone}*`);
 
     console.log(`[MongoDB Write] Successfully stored/updated user profile for +91 ${profileData.phone} in MongoDB Atlas.`);
 
