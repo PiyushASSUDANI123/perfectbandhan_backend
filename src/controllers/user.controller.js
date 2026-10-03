@@ -1182,7 +1182,7 @@ exports.getAllUsersAdmin = async (req, res) => {
     }
 
     const cacheKey = 'adminAllUsers';
-    const cachedUsers = cacheService.get(cacheKey);
+    const cachedUsers = await cacheService.get(cacheKey);
     if (cachedUsers) {
       return res.status(200).json({ status: 'success', data: cachedUsers });
     }
@@ -1743,7 +1743,7 @@ exports.getConversations = async (req, res) => {
 exports.getAppConfig = async (req, res) => {
   try {
     const cacheKey = 'appConfig';
-    const cachedConfig = cacheService.get(cacheKey);
+    const cachedConfig = await cacheService.get(cacheKey);
     if (cachedConfig) {
       return res.status(200).json({ status: 'success', data: cachedConfig });
     }
