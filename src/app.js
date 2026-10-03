@@ -101,7 +101,14 @@ const globalRateLimiter = createRedisLimiter(
 
 // Standard Apple-minimal server middleware
 app.use(helmet()); // Secure HTTP headers
-app.use(cors());
+app.use(cors({
+  origin: function (origin, callback) {
+    callback(null, true);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true
+}));
 app.use(compression({
   level: 6,
   threshold: 1024, // Only compress responses > 1KB
